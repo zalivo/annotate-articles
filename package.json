@@ -1,0 +1,44 @@
+{
+  "name": "annotations",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:push": "dotenv-cli -e .env.local -- drizzle-kit push",
+    "db:studio": "dotenv-cli -e .env.local -- drizzle-kit studio"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "@supabase/ssr": "^0.9.0",
+    "@supabase/supabase-js": "^2.98.0",
+    "@tanstack/react-query": "^5.90.21",
+    "@trpc/client": "^11.11.0",
+    "@trpc/next": "^11.11.0",
+    "@trpc/react-query": "^11.11.0",
+    "@trpc/server": "^11.11.0",
+    "drizzle-orm": "^0.45.1",
+    "jsdom": "^28.1.0",
+    "nanoid": "^5.1.6",
+    "next": "16.1.6",
+    "postgres": "^3.4.8",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/jsdom": "^28.0.0",
+    "@types/node": "^20.19.35",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv-cli": "^11.0.0",
+    "drizzle-kit": "^0.31.9",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "typescript": "5.9.3"
+  }
+}
