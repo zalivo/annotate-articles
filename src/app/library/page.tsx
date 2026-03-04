@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { db } from "@/db";
@@ -79,13 +80,13 @@ export default async function LibraryPage() {
         className="flex items-center justify-between px-8 py-4 border-b"
         style={{ borderColor: "var(--border)" }}
       >
-        <a
+        <Link
           href="/"
           className="text-sm tracking-widest uppercase transition-opacity hover:opacity-60"
           style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
         >
           ← Annotate
-        </a>
+        </Link>
         <span
           className="text-xs"
           style={{ color: "var(--ink-faint)", fontFamily: "var(--font-geist-sans)" }}
@@ -120,19 +121,19 @@ export default async function LibraryPage() {
             >
               Nothing here yet.
             </p>
-            <a
+            <Link
               href="/"
               className="text-sm tracking-widest uppercase transition-opacity hover:opacity-60"
               style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
             >
               Paste your first article →
-            </a>
+            </Link>
           </div>
         ) : (
           <ul className="flex flex-col divide-y" style={{ borderColor: "var(--border)" }}>
             {sorted.map((article) => (
               <li key={article.id}>
-                <a
+                <Link
                   href={`/article/${article.id}`}
                   className="flex flex-col gap-1 py-5 group transition-opacity hover:opacity-70"
                 >
@@ -154,7 +155,7 @@ export default async function LibraryPage() {
                       {countMap[article.id]} annotation{countMap[article.id] === 1 ? "" : "s"}
                     </span>
                   </div>
-                </a>
+                </Link>
               </li>
             ))}
           </ul>

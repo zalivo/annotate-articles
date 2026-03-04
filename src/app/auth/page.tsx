@@ -3,6 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useState } from "react";
+import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 
 export default function AuthPage() {
@@ -74,13 +75,13 @@ export default function AuthPage() {
         className="flex items-center justify-between px-8 py-6 border-b"
         style={{ borderColor: "var(--border)" }}
       >
-        <a
+        <Link
           href="/"
           className="text-sm tracking-widest uppercase transition-opacity hover:opacity-60"
           style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
         >
           Annotate
-        </a>
+        </Link>
       </nav>
 
       <main className="flex-1 flex items-center justify-center px-6">

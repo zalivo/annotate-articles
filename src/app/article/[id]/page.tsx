@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { db } from "@/db";
 import { articles, annotations } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -48,20 +49,20 @@ export default async function ArticlePage({ params }: Props) {
         className="flex items-center justify-between px-8 py-4 border-b"
         style={{ borderColor: "var(--border)" }}
       >
-        <a
+        <Link
           href="/"
           className="text-sm tracking-widest uppercase transition-opacity hover:opacity-60"
           style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
         >
           ← Annotate
-        </a>
-        <a
+        </Link>
+        <Link
           href="/library"
           className="text-sm transition-opacity hover:opacity-60"
           style={{ color: "var(--ink-faint)", fontFamily: "var(--font-geist-sans)" }}
         >
           My Library
-        </a>
+        </Link>
       </nav>
 
       {/* Attribution banner */}
