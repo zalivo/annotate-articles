@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 
@@ -10,8 +10,6 @@ export default function Home() {
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [error, setError] = useState("");
   const [isSignedIn, setIsSignedIn] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
   useEffect(() => {
     const supabase = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -58,9 +56,9 @@ export default function Home() {
     <div className="min-h-screen flex flex-col" style={{ background: "var(--cream)" }}>
       {/* Nav */}
       <nav className="flex items-center justify-between px-8 py-6 border-b" style={{ borderColor: "var(--border)" }}>
-        <span className="text-sm tracking-widest uppercase" style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}>
+        <a href="/" className="text-sm tracking-widest uppercase transition-opacity hover:opacity-60" style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}>
           Annotate
-        </span>
+        </a>
         {isSignedIn ? (
           <a
             href="/library"
@@ -128,7 +126,7 @@ export default function Home() {
               </svg>
 
               <input
-                ref={inputRef}
+
                 type="url"
                 value={url}
                 onChange={(e) => {
@@ -175,43 +173,6 @@ export default function Home() {
             )}
           </form>
 
-          {/* Example links */}
-          <div className="flex flex-col items-center gap-3">
-            <p
-              className="text-xs tracking-widest uppercase"
-              style={{ color: "var(--ink-faint)", fontFamily: "var(--font-geist-sans)" }}
-            >
-              Try an example
-            </p>
-            <div className="flex flex-wrap justify-center gap-2">
-              {EXAMPLES.map((ex) => (
-                <button
-                  key={ex.url}
-                  onClick={() => {
-                    setUrl(ex.url);
-                    setStatus("idle");
-                    inputRef.current?.focus();
-                  }}
-                  className="rounded-full border px-4 py-1.5 text-sm transition-all hover:border-transparent"
-                  style={{
-                    borderColor: "var(--border)",
-                    color: "var(--ink-muted)",
-                    fontFamily: "var(--font-geist-sans)",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "var(--highlight-dim)";
-                    (e.currentTarget as HTMLButtonElement).style.color = "var(--ink)";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = "";
-                    (e.currentTarget as HTMLButtonElement).style.color = "var(--ink-muted)";
-                  }}
-                >
-                  {ex.label}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </main>
 
@@ -246,17 +207,3 @@ function Spinner() {
   );
 }
 
-const EXAMPLES = [
-  {
-    label: "Paul Graham — Do Things That Don't Scale",
-    url: "https://paulgraham.com/ds.html",
-  },
-  {
-    label: "The Atlantic — The Coddling of the American Mind",
-    url: "https://www.theatlantic.com/magazine/archive/2015/09/the-coddling-of-the-american-mind/399356/",
-  },
-  {
-    label: "Wait But Why — The AI Revolution",
-    url: "https://waitbutwhy.com/2015/01/artificial-intelligence-revolution-1.html",
-  },
-];
