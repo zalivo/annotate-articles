@@ -459,8 +459,8 @@ function CommentSidebar({
               onClick={() => onSelect(isActive ? null : ann.id)}
               className="rounded-lg p-3 cursor-pointer transition-all"
               style={{
-                background: isActive ? "#fff" : "transparent",
-                border: `1px solid ${isActive ? "var(--border)" : "transparent"}`,
+                background: "#fff",
+                border: "1px solid var(--border)",
                 boxShadow: isActive ? "0 2px 8px rgba(28,23,16,0.08)" : "none",
               }}
             >
