@@ -54,6 +54,19 @@ export const annotationsRouter = router({
         );
     }),
 
+  deleteAllByArticle: protectedProcedure
+    .input(z.object({ articleId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .delete(annotations)
+        .where(
+          and(
+            eq(annotations.articleId, input.articleId),
+            eq(annotations.creatorId, ctx.user.id)
+          )
+        );
+    }),
+
   listByArticle: publicProcedure
     .input(z.object({ articleId: z.string().uuid(), creatorId: z.string().uuid().optional() }))
     .query(async ({ ctx, input }) => {

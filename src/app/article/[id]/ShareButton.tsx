@@ -34,7 +34,7 @@ export function ShareButton({ articleId }: { articleId: string }) {
     <button
       onClick={handleShare}
       disabled={createLink.isPending}
-      className="shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all disabled:opacity-40"
+      className="shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all hover:opacity-70 disabled:opacity-40"
       style={{
         background: copied ? "var(--highlight)" : "var(--ink)",
         color: copied ? "var(--ink)" : "var(--cream)",

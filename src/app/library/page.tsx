@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { cookies } from "next/headers";
+import { LibraryArticleRow } from "./LibraryArticleRow";
 import { createServerClient } from "@supabase/ssr";
 import { db } from "@/db";
 import { users, articles, annotations } from "@/db/schema";
@@ -132,31 +133,11 @@ export default async function LibraryPage() {
         ) : (
           <ul className="flex flex-col divide-y" style={{ borderColor: "var(--border)" }}>
             {sorted.map((article) => (
-              <li key={article.id}>
-                <Link
-                  href={`/article/${article.id}`}
-                  className="flex flex-col gap-1 py-5 group transition-opacity hover:opacity-70"
-                >
-                  <h2
-                    className="text-lg leading-snug"
-                    style={{ fontFamily: "var(--font-lora)", color: "var(--ink)" }}
-                  >
-                    {article.title}
-                  </h2>
-                  <div
-                    className="flex items-center gap-2 text-xs"
-                    style={{ color: "var(--ink-faint)", fontFamily: "var(--font-geist-sans)" }}
-                  >
-                    {article.siteName && <span>{article.siteName}</span>}
-                    {article.siteName && <span>·</span>}
-                    {article.author && <span>{article.author}</span>}
-                    {article.author && <span>·</span>}
-                    <span>
-                      {countMap[article.id]} annotation{countMap[article.id] === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                </Link>
-              </li>
+              <LibraryArticleRow
+                key={article.id}
+                article={article}
+                annotationCount={countMap[article.id] ?? 0}
+              />
             ))}
           </ul>
         )}
