@@ -80,7 +80,7 @@ export default function AuthPage() {
           className="text-sm tracking-widest uppercase transition-opacity hover:opacity-60"
           style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
         >
-          Annotate
+          Highlight Stack
         </Link>
       </nav>
 

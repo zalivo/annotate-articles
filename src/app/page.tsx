@@ -60,7 +60,7 @@ export default function Home() {
         >
             {/* Nav */}
             <nav
-                className="flex items-center justify-between px-8 py-6 border-b"
+                className="flex items-center justify-between px-8 py-4 border-b"
                 style={{ borderColor: "var(--border)" }}
             >
                 <Link
@@ -71,7 +71,7 @@ export default function Home() {
                         fontFamily: "var(--font-geist-sans)",
                     }}
                 >
-                    Annotate
+                    Highlight Stack
                 </Link>
                 {isSignedIn ? (
                     <Link
@@ -110,17 +110,17 @@ export default function Home() {
                                 color: "var(--ink)",
                             }}
                         >
-                            Read deeply.{" "}
+                            HIGH
                             <span
                                 className="italic"
                                 style={{
                                     background: "var(--highlight)",
                                     padding: "0 6px 2px",
-                                    marginLeft: "-2px",
                                 }}
                             >
-                                Share&nbsp;thinking.
+                                LIGHT
                             </span>
+                            {" "}STACK
                         </h1>
 
                         <p
@@ -207,7 +207,7 @@ export default function Home() {
                                         Fetching…
                                     </span>
                                 ) : (
-                                    "Annotate →"
+                                    "Open →"
                                 )}
                             </button>
                         </div>

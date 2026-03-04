@@ -21,7 +21,7 @@ export default function NotFound() {
         className="mt-2 text-sm tracking-widest uppercase transition-opacity hover:opacity-60"
         style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
       >
-        ← Back to Annotate
+        ← Back to Highlight Stack
       </a>
     </div>
   );

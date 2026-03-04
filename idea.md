@@ -383,6 +383,12 @@ Since you want to start single-user but plan for multi-user, here are the archit
 **UX polish**
 - [x] Per-article `<title>` and `<meta description>` tags (Server Component metadata export)
 - [x] Custom `not-found.tsx` and `error.tsx` pages
+- [x] Annotation cards on the right always have a white background and visible border (not transparent)
+
+### Library (`/library`)
+- [x] List all articles the user has annotated, with annotation count
+- [x] Share button per article — generates a share link from the library view
+- [x] Delete button per article — removes all user annotations for that article, with confirmation
 
 **Deployment**
 - [ ] Add production env vars to Railway/Vercel (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL`)

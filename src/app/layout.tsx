@@ -20,7 +20,7 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
-  title: "Annotate",
+  title: "Highlight Stack",
   description: "Highlight and share annotated articles with friends.",
 };
 

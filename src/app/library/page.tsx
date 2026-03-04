@@ -9,7 +9,7 @@ import { eq, inArray, sql } from "drizzle-orm";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "My Library — Annotate",
+  title: "My Library — Highlight Stack",
 };
 
 export default async function LibraryPage() {
@@ -86,11 +86,11 @@ export default async function LibraryPage() {
           className="text-sm tracking-widest uppercase transition-opacity hover:opacity-60"
           style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
         >
-          ← Annotate
+          ← Highlight Stack
         </Link>
         <span
           className="text-xs"
-          style={{ color: "var(--ink-faint)", fontFamily: "var(--font-geist-sans)" }}
+          style={{ color: "var(--ink)", fontFamily: "var(--font-geist-sans)" }}
         >
           {dbUser.name}
         </span>

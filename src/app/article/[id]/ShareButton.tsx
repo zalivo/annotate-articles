@@ -54,7 +54,7 @@ export function ShareButton({ articleId }: { articleId: string }) {
             <path d="M4.5 7.5a2.5 2.5 0 0 0 3.5 0l1.5-1.5a2.5 2.5 0 0 0-3.5-3.5l-.75.75" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
             <path d="M7.5 4.5a2.5 2.5 0 0 0-3.5 0L2.5 6A2.5 2.5 0 0 0 6 9.5l.75-.75" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
           </svg>
-          {createLink.isPending ? "Sharing…" : "Share"}
+          {createLink.isPending ? "Sharing…" : "Share annotations"}
         </>
       )}
     </button>

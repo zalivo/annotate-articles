@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
     const res = await fetch(url, {
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (compatible; Annotate/1.0; +https://annotate.app)",
+          "Mozilla/5.0 (compatible; HighlightStack/1.0)",
         Accept: "text/html,application/xhtml+xml",
       },
     });
