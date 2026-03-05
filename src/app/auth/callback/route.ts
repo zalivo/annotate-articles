@@ -5,7 +5,8 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
-  const { searchParams, origin } = new URL(req.url);
+  const { searchParams } = new URL(req.url);
+  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(req.url).origin;
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/";
 
