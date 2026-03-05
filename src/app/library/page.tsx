@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { LibraryArticleRow } from "./LibraryArticleRow";
+import { SignOutButton } from "./SignOutButton";
 import { createServerClient } from "@supabase/ssr";
 import { db } from "@/db";
 import { users, articles, annotations } from "@/db/schema";
@@ -88,12 +89,15 @@ export default async function LibraryPage() {
         >
           ← Highlight Stack
         </Link>
-        <span
-          className="text-xs"
-          style={{ color: "var(--ink)", fontFamily: "var(--font-geist-sans)" }}
-        >
-          {dbUser.name}
-        </span>
+        <div className="flex items-center gap-4">
+          <span
+            className="text-xs"
+            style={{ color: "var(--ink)", fontFamily: "var(--font-geist-sans)" }}
+          >
+            {dbUser.name}
+          </span>
+          <SignOutButton />
+        </div>
       </nav>
 
       <main className="mx-auto px-6 py-16" style={{ maxWidth: "720px" }}>
