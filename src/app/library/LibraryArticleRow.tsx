@@ -31,19 +31,19 @@ export function LibraryArticleRow({ article, annotationCount }: Props) {
   }
 
   return (
-    <li className="flex items-center gap-3 py-5">
+    <li className="flex flex-col gap-3 py-5 sm:flex-row sm:items-center sm:gap-3">
       <Link
         href={`/article/${article.id}`}
         className="flex flex-col gap-1 flex-1 min-w-0 group transition-opacity hover:opacity-70"
       >
         <h2
-          className="text-lg leading-snug truncate"
+          className="text-lg leading-snug"
           style={{ fontFamily: "var(--font-lora)", color: "var(--ink)" }}
         >
           {article.title}
         </h2>
         <div
-          className="flex items-center gap-2 text-xs"
+          className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs"
           style={{ color: "var(--ink-faint)", fontFamily: "var(--font-geist-sans)" }}
         >
           {article.siteName && <span>{article.siteName}</span>}
