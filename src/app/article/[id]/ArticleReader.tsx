@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useLayoutEffect, useCallback } from "react";
+import React, { useState, useRef, useLayoutEffect, useCallback } from "react";
 import { trpc } from "@/trpc/client";
 import type { Paragraph } from "@/db/schema";
 
@@ -31,10 +31,21 @@ interface PendingSelection {
   rect: { top: number; left: number; width: number };
 }
 
+const HIGHLIGHT_COLORS: Record<string, { active: string; dim: string }> = {
+  yellow: { active: "#FFC800", dim: "#FFE566" },
+  orange: { active: "#FF8C00", dim: "#FFBB66" },
+  green:  { active: "#5DC957", dim: "#A8E6A3" },
+  teal:   { active: "#00B5A3", dim: "#6DDDD3" },
+  blue:   { active: "#4AA8FF", dim: "#93C9FF" },
+  purple: { active: "#9B6DFF", dim: "#C9AAFF" },
+  pink:   { active: "#FF7099", dim: "#FFB3CC" },
+};
+
 export function ArticleReader({ articleId, paragraphs, readOnly = false, initialAnnotations = [] }: Props) {
   const [annotations, setAnnotations] = useState<Annotation[]>(initialAnnotations as Annotation[]);
   const [pending, setPending] = useState<PendingSelection | null>(null);
   const [comment, setComment] = useState("");
+  const [selectedColor, setSelectedColor] = useState("yellow");
   const [saveError, setSaveError] = useState("");
   const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -45,6 +56,7 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
       setAnnotations((prev) => [...prev, annotation as Annotation]);
       setPending(null);
       setComment("");
+      setSelectedColor("yellow");
       setSaveError("");
     },
     onError: (err) => {
@@ -114,13 +126,14 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
       articleId,
       ...pending,
       comment: comment.trim(),
-      color: "yellow",
+      color: selectedColor,
     });
   }
 
   function cancelPending() {
     setPending(null);
     setComment("");
+    setSelectedColor("yellow");
     setSaveError("");
     window.getSelection()?.removeAllRanges();
   }
@@ -129,7 +142,7 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
   const highlightMap = buildHighlightMap(annotations);
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative" onClick={() => setActiveAnnotationId(null)}>
       {/* Two-column layout: article + sidebar */}
       <div className="flex gap-0">
         {/* Article column */}
@@ -160,6 +173,7 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
             activeAnnotationId={activeAnnotationId}
             onSelect={setActiveAnnotationId}
             onDelete={readOnly ? undefined : (id) => deleteAnnotation.mutate({ id })}
+            readerRef={containerRef}
           />
         </div>
       </div>
@@ -185,6 +199,22 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
             </p>
           </div>
           <div className="p-3 flex flex-col gap-2">
+            <div className="flex gap-1.5">
+              {Object.entries(HIGHLIGHT_COLORS).map(([name, { active }]) => (
+                <button
+                  key={name}
+                  onClick={() => setSelectedColor(name)}
+                  className="w-5 h-5 rounded-full transition-transform cursor-pointer"
+                  style={{
+                    background: active,
+                    outline: selectedColor === name ? `2px solid ${active}` : "none",
+                    outlineOffset: "2px",
+                    transform: selectedColor === name ? "scale(1.15)" : "scale(1)",
+                  }}
+                  title={name}
+                />
+              ))}
+            </div>
             <textarea
               ref={commentInputRef}
               value={comment}
@@ -364,14 +394,15 @@ function renderWithHighlights(
     const end = Math.min(h.end, text.length);
     if (start < end) {
       const isActive = h.annotationId === activeAnnotationId;
+      const palette = HIGHLIGHT_COLORS[h.color] ?? HIGHLIGHT_COLORS.yellow;
       segments.push(
         <mark
           key={h.annotationId}
           data-annotation-id={h.annotationId}
-          onClick={() => onHighlightClick(h.annotationId)}
+          onClick={(e) => { e.stopPropagation(); onHighlightClick(h.annotationId); }}
           className="cursor-pointer rounded-sm transition-colors"
           style={{
-            background: isActive ? "var(--highlight)" : "var(--highlight-dim)",
+            background: isActive ? palette.active : palette.dim,
             color: "var(--ink)",
             padding: "1px 1px",
           }}
@@ -398,12 +429,14 @@ function CommentSidebar({
   activeAnnotationId,
   onSelect,
   onDelete,
+  readerRef,
 }: {
   annotations: Annotation[];
   paragraphs: Paragraph[];
   activeAnnotationId: string | null;
   onSelect: (id: string | null) => void;
   onDelete?: (id: string) => void;
+  readerRef: React.RefObject<HTMLDivElement>;
 }) {
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [offsets, setOffsets] = useState<Record<string, number>>({});
@@ -413,15 +446,16 @@ function CommentSidebar({
     const newOffsets: Record<string, number> = {};
     let minTop = 0;
 
-    for (const ann of annotations) {
-      const el = document.querySelector<HTMLElement>(
-        `[data-paragraph-id="${ann.startParagraphId}"]`
-      );
-      if (!el) continue;
+    // Resolve positions and sort by document order before stacking
+    const positioned = annotations
+      .map(ann => {
+        const el = document.querySelector<HTMLElement>(`[data-paragraph-id="${ann.startParagraphId}"]`);
+        return { ann, el, elTop: el ? getOffsetTopRelativeTo(el, readerRef.current) : 0 };
+      })
+      .sort((a, b) => a.elTop !== b.elTop ? a.elTop - b.elTop : a.ann.startOffset - b.ann.startOffset);
 
-      const container = el.closest("[data-article-container]") ?? document.body;
-      const containerTop = container.getBoundingClientRect().top;
-      const elTop = el.getBoundingClientRect().top - containerTop;
+    for (const { ann, el, elTop } of positioned) {
+      if (!el) continue;
 
       const top = Math.max(elTop, minTop);
       newOffsets[ann.id] = top;
@@ -431,7 +465,7 @@ function CommentSidebar({
     }
 
     setOffsets(newOffsets);
-  }, [annotations]);
+  }, [annotations, readerRef]);
 
   if (annotations.length === 0) {
     return (
@@ -456,7 +490,7 @@ function CommentSidebar({
             style={{ top: offsets[ann.id] ?? 0 }}
           >
             <div
-              onClick={() => onSelect(isActive ? null : ann.id)}
+              onClick={(e) => { e.stopPropagation(); onSelect(isActive ? null : ann.id); }}
               className="rounded-lg p-3 cursor-pointer transition-all"
               style={{
                 background: "#fff",
@@ -563,6 +597,16 @@ function getOffsetInElement(container: HTMLElement, node: Node, offset: number):
     current = walker.nextNode();
   }
   return total + offset;
+}
+
+function getOffsetTopRelativeTo(el: HTMLElement, ancestor: HTMLElement | null): number {
+  let top = 0;
+  let node: HTMLElement | null = el;
+  while (node && node !== ancestor) {
+    top += node.offsetTop;
+    node = node.offsetParent as HTMLElement | null;
+  }
+  return top;
 }
 
 function buildHighlightMap(annotations: Annotation[]): Record<string, HighlightRange[]> {
