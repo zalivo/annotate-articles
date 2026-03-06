@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { db } from "@/db";
 import { sharedLinks, articles, annotations, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -43,6 +44,20 @@ export default async function SharedPage({ params }: Props) {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--cream)" }}>
+      {/* Nav */}
+      <nav
+        className="flex items-center px-8 py-4 border-b"
+        style={{ borderColor: "var(--border)" }}
+      >
+        <Link
+          href="/"
+          className="text-sm tracking-widest uppercase transition-opacity hover:opacity-60"
+          style={{ color: "var(--ink)", fontFamily: "var(--font-geist-sans)" }}
+        >
+          ← Highlight Stack
+        </Link>
+      </nav>
+
       {/* Attribution banner */}
       <div
         className="border-b px-6 py-3 flex items-center gap-3"
