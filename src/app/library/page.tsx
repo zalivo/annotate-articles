@@ -30,42 +30,41 @@ export default async function LibraryPage() {
   );
 
   const {
-    data: { user: supabaseUser },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
 
-  if (!supabaseUser?.email) {
+  if (!session?.user?.email) {
     redirect("/auth?next=/library");
   }
 
-  const [dbUser] = await db
-    .select()
-    .from(users)
-    .where(eq(users.email, supabaseUser.email))
-    .limit(1);
-
-  if (!dbUser) redirect("/auth?next=/library");
-
-  // Articles the user has annotated, with annotation counts
-  const annotationCounts = await db
+  // Single query: user info + annotation counts per article via LEFT JOIN
+  const userWithAnnotations = await db
     .select({
+      userId: users.id,
+      userName: users.name,
       articleId: annotations.articleId,
-      count: sql<number>`cast(count(*) as int)`,
+      count: sql<number>`cast(count(${annotations.id}) as int)`,
     })
-    .from(annotations)
-    .where(eq(annotations.creatorId, dbUser.id))
-    .groupBy(annotations.articleId);
+    .from(users)
+    .leftJoin(annotations, eq(annotations.creatorId, users.id))
+    .where(eq(users.email, session.user.email))
+    .groupBy(users.id, users.name, annotations.articleId);
+
+  if (!userWithAnnotations.length) redirect("/auth?next=/library");
+
+  const dbUser = { id: userWithAnnotations[0].userId, name: userWithAnnotations[0].userName };
+  const annotationCounts = userWithAnnotations.filter((r) => r.articleId !== null) as {
+    articleId: string;
+    count: number;
+  }[];
 
   const articleIds = annotationCounts.map((r) => r.articleId);
 
   const userArticles =
     articleIds.length > 0
-      ? await db
-          .select()
-          .from(articles)
-          .where(inArray(articles.id, articleIds))
+      ? await db.select().from(articles).where(inArray(articles.id, articleIds))
       : [];
 
-  // Map articleId → count for easy lookup
   const countMap = Object.fromEntries(
     annotationCounts.map((r) => [r.articleId, r.count])
   );
