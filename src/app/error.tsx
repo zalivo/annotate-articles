@@ -29,7 +29,7 @@ export default function Error({
       <div className="flex gap-4 mt-2">
         <button
           onClick={reset}
-          className="text-sm tracking-widest uppercase transition-opacity hover:opacity-60"
+          className="text-sm tracking-widest uppercase transition-opacity hover:opacity-60 cursor-pointer"
           style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
         >
           Try again

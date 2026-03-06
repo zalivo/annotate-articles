@@ -132,7 +132,7 @@ export default function AuthPage() {
             <button
               type="submit"
               disabled={status === "loading" || !email.trim()}
-              className="rounded-xl px-5 py-4 text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="rounded-xl px-5 py-4 text-sm font-medium transition-all disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
               style={{
                 background: "var(--ink)",
                 color: "var(--cream)",

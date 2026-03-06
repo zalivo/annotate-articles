@@ -210,7 +210,7 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
             <div className="flex gap-2 justify-end">
               <button
                 onClick={cancelPending}
-                className="px-3 py-1.5 text-xs rounded-lg transition-opacity hover:opacity-60"
+                className="px-3 py-1.5 text-xs rounded-lg transition-opacity hover:opacity-60 cursor-pointer"
                 style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
               >
                 Cancel
@@ -218,7 +218,7 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
               <button
                 onClick={saveAnnotation}
                 disabled={createAnnotation.isPending || !comment.trim()}
-                className="px-3 py-1.5 text-xs rounded-lg font-medium disabled:opacity-40"
+                className="px-3 py-1.5 text-xs rounded-lg font-medium disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                 style={{
                   background: "var(--ink)",
                   color: "var(--cream)",
@@ -482,7 +482,7 @@ function CommentSidebar({
                     e.stopPropagation();
                     onDelete(ann.id);
                   }}
-                  className="mt-2 text-xs transition-opacity hover:opacity-60"
+                  className="mt-2 text-xs transition-opacity hover:opacity-60 cursor-pointer"
                   style={{ color: "#D94F3D", fontFamily: "var(--font-geist-sans)" }}
                 >
                   Delete
@@ -525,7 +525,7 @@ function MobileAnnotationCard({
           >
             &ldquo;{annotation.highlightedText}&rdquo;
           </p>
-          <button onClick={onClose} className="shrink-0 opacity-40 hover:opacity-70 transition-opacity">
+          <button onClick={onClose} className="shrink-0 opacity-40 hover:opacity-70 transition-opacity cursor-pointer">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
@@ -537,7 +537,7 @@ function MobileAnnotationCard({
         {onDelete && (
           <button
             onClick={() => onDelete(annotation.id)}
-            className="mt-3 text-xs transition-opacity hover:opacity-60"
+            className="mt-3 text-xs transition-opacity hover:opacity-60 cursor-pointer"
             style={{ color: "#D94F3D", fontFamily: "var(--font-geist-sans)" }}
           >
             Delete annotation

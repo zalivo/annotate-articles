@@ -194,7 +194,7 @@ export default function Home() {
                             <button
                                 type="submit"
                                 disabled={isLoading || !url.trim()}
-                                className="shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition-all disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
                                 style={{
                                     background: "var(--ink)",
                                     color: "var(--cream)",
