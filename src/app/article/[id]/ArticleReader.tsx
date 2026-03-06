@@ -436,7 +436,7 @@ function CommentSidebar({
   activeAnnotationId: string | null;
   onSelect: (id: string | null) => void;
   onDelete?: (id: string) => void;
-  readerRef: React.RefObject<HTMLDivElement>;
+  readerRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [offsets, setOffsets] = useState<Record<string, number>>({});
