@@ -465,12 +465,6 @@ function CommentSidebar({
               }}
             >
               <p
-                className="text-xs italic mb-1.5 line-clamp-2"
-                style={{ color: "var(--ink-muted)", fontFamily: "var(--font-lora)" }}
-              >
-                &ldquo;{ann.highlightedText}&rdquo;
-              </p>
-              <p
                 className="text-xs leading-relaxed"
                 style={{ color: "var(--ink)", fontFamily: "var(--font-geist-sans)" }}
               >
