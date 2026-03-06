@@ -60,23 +60,25 @@ export default async function SharedPage({ params }: Props) {
 
       {/* Attribution banner */}
       <div
-        className="border-b px-6 py-3 flex items-center gap-3"
-        style={{ borderColor: "var(--border)" }}
+        className="border-b px-6 py-3 flex items-center justify-between gap-3"
+        style={{ borderColor: "var(--border)", background: "var(--cream)" }}
       >
-        <span
-          className="text-xs tracking-widest uppercase shrink-0"
-          style={{ color: "var(--ink-faint)", fontFamily: "var(--font-geist-sans)" }}
-        >
-          Original
-        </span>
         <a
           href={article.sourceUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm truncate underline underline-offset-2 hover:opacity-60 transition-opacity flex-1"
-          style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
+          className="shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all hover:opacity-70"
+          style={{
+            background: "transparent",
+            border: "1px solid var(--border)",
+            color: "var(--ink)",
+            fontFamily: "var(--font-geist-sans)",
+          }}
         >
-          {article.sourceUrl}
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M5 2H2.5A.5.5 0 0 0 2 2.5v7a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 .5-.5V7M7 2h3m0 0v3m0-3L5 7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Read original article
         </a>
         {creator && (
           <span
