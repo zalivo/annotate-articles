@@ -10,7 +10,7 @@ const annotationInput = z.object({
   endParagraphId: z.string(),
   endOffset: z.number().int().min(0),
   highlightedText: z.string().min(1),
-  comment: z.string().min(1),
+  comment: z.string().optional(),
   color: z.string().default("yellow"),
 });
 
@@ -26,7 +26,7 @@ export const annotationsRouter = router({
     }),
 
   update: protectedProcedure
-    .input(z.object({ id: z.string().uuid(), comment: z.string().min(1) }))
+    .input(z.object({ id: z.string().uuid(), comment: z.string().min(1).optional() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db
         .update(annotations)

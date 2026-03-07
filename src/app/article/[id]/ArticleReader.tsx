@@ -11,7 +11,7 @@ type Annotation = {
   endParagraphId: string;
   endOffset: number;
   highlightedText: string;
-  comment: string;
+  comment: string | null;
   color: string;
 };
 
@@ -130,6 +130,16 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
     });
   }
 
+  function saveHighlightOnly() {
+    if (!pending) return;
+    setSaveError("");
+    createAnnotation.mutate({
+      articleId,
+      ...pending,
+      color: selectedColor,
+    });
+  }
+
   function cancelPending() {
     setPending(null);
     setComment("");
@@ -168,7 +178,7 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
         {/* Sidebar — margin comments */}
         <div className="hidden lg:block w-72 shrink-0 pl-10 relative">
           <CommentSidebar
-            annotations={annotations}
+            annotations={annotations.filter((a) => a.comment)}
             paragraphs={paragraphs}
             activeAnnotationId={activeAnnotationId}
             onSelect={setActiveAnnotationId}
@@ -177,6 +187,39 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
           />
         </div>
       </div>
+
+      {/* Floating delete popover for highlight-only annotations */}
+      {!readOnly && activeAnnotationId && (() => {
+        const ann = annotations.find((a) => a.id === activeAnnotationId);
+        if (!ann || ann.comment) return null;
+        const markEl = containerRef.current?.querySelector<HTMLElement>(
+          `[data-annotation-id="${activeAnnotationId}"]`
+        );
+        if (!markEl) return null;
+        const markRect = markEl.getBoundingClientRect();
+        const containerRect = containerRef.current!.getBoundingClientRect();
+        return (
+          <div
+            className="absolute z-50 rounded-lg shadow-lg border px-3 py-2 hidden lg:flex items-center gap-2"
+            style={{
+              top: markRect.bottom - containerRect.top + 6,
+              left: markRect.left - containerRect.left,
+              background: "#fff",
+              borderColor: "var(--border)",
+              boxShadow: "0 4px 16px rgba(28,23,16,0.10)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => deleteAnnotation.mutate({ id: activeAnnotationId })}
+              className="text-xs transition-opacity hover:opacity-60 cursor-pointer"
+              style={{ color: "#D94F3D", fontFamily: "var(--font-geist-sans)" }}
+            >
+              Remove highlight
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Floating comment popover */}
       {pending && (
@@ -246,6 +289,19 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
                 Cancel
               </button>
               <button
+                onClick={saveHighlightOnly}
+                disabled={createAnnotation.isPending}
+                className="px-3 py-1.5 text-xs rounded-lg font-medium disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                style={{
+                  background: "var(--ink)",
+                  color: "var(--cream)",
+                  fontFamily: "var(--font-geist-sans)",
+                  opacity: comment.trim() ? 0.5 : 1,
+                }}
+              >
+                {createAnnotation.isPending ? "Saving…" : "Highlight only"}
+              </button>
+              <button
                 onClick={saveAnnotation}
                 disabled={createAnnotation.isPending || !comment.trim()}
                 className="px-3 py-1.5 text-xs rounded-lg font-medium disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
@@ -263,13 +319,17 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
       )}
 
       {/* Mobile: active annotation card */}
-      {activeAnnotationId && (
-        <MobileAnnotationCard
-          annotation={annotations.find((a) => a.id === activeAnnotationId)!}
-          onClose={() => setActiveAnnotationId(null)}
-          onDelete={readOnly ? undefined : (id) => deleteAnnotation.mutate({ id })}
-        />
-      )}
+      {activeAnnotationId && (() => {
+        const ann = annotations.find((a) => a.id === activeAnnotationId);
+        if (!ann) return null;
+        return (
+          <MobileAnnotationCard
+            annotation={ann}
+            onClose={() => setActiveAnnotationId(null)}
+            onDelete={readOnly ? undefined : (id) => deleteAnnotation.mutate({ id })}
+          />
+        );
+      })()}
     </div>
   );
 }
@@ -559,9 +619,11 @@ function MobileAnnotationCard({
             </svg>
           </button>
         </div>
-        <p className="text-sm" style={{ color: "var(--ink)", fontFamily: "var(--font-geist-sans)" }}>
-          {annotation.comment}
-        </p>
+        {annotation.comment && (
+          <p className="text-sm" style={{ color: "var(--ink)", fontFamily: "var(--font-geist-sans)" }}>
+            {annotation.comment}
+          </p>
+        )}
         {onDelete && (
           <button
             onClick={() => onDelete(annotation.id)}

@@ -32,7 +32,7 @@ export const annotations = pgTable("annotations", {
   endParagraphId: text("end_paragraph_id").notNull(),
   endOffset: integer("end_offset").notNull(),
   highlightedText: text("highlighted_text").notNull(),
-  comment: text("comment").notNull(),
+  comment: text("comment"),
   color: text("color").notNull().default("yellow"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
