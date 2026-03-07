@@ -30,10 +30,10 @@ export default async function LibraryPage() {
   );
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user: supabaseUser },
+  } = await supabase.auth.getUser();
 
-  if (!session?.user?.email) {
+  if (!supabaseUser?.email) {
     redirect("/auth?next=/library");
   }
 
@@ -47,7 +47,7 @@ export default async function LibraryPage() {
     })
     .from(users)
     .leftJoin(annotations, eq(annotations.creatorId, users.id))
-    .where(eq(users.email, session.user.email))
+    .where(eq(users.email, supabaseUser.email))
     .groupBy(users.id, users.name, annotations.articleId);
 
   if (!userWithAnnotations.length) redirect("/auth?next=/library");
