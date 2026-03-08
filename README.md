@@ -1,6 +1,6 @@
 # Annotate
 
-Highlight and annotate web articles, then share an annotated reading view with friends — like Word's comment system, but for any article on the internet.
+Highlight and annotate web articles, then share an annotated reading view with friends — like Word's comment system, but for any article on the internet..
 
 ## Getting Started
 
