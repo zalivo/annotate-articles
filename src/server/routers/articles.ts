@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "../trpc";
-import { articles } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { articles, annotations, stackArticles } from "@/db/schema";
+import { eq, sql, desc } from "drizzle-orm";
 
 export const articlesRouter = router({
   ingest: protectedProcedure
@@ -30,6 +30,45 @@ export const articlesRouter = router({
 
       return res.json();
     }),
+
+  trending: publicProcedure.query(async ({ ctx }) => {
+    const rows = await ctx.db
+      .select({
+        id: articles.id,
+        title: articles.title,
+        author: articles.author,
+        siteName: articles.siteName,
+        sourceUrl: articles.sourceUrl,
+        highlightCount: sql<number>`count(distinct ${annotations.id})`.as(
+          "highlight_count"
+        ),
+        stackCount: sql<number>`count(distinct ${stackArticles.id})`.as(
+          "stack_count"
+        ),
+      })
+      .from(articles)
+      .leftJoin(
+        annotations,
+        sql`${annotations.articleId} = ${articles.id} and ${annotations.visibility} = 'public'`
+      )
+      .leftJoin(stackArticles, eq(stackArticles.articleId, articles.id))
+      .groupBy(articles.id)
+      .having(
+        sql`count(distinct ${annotations.id}) + count(distinct ${stackArticles.id}) > 0`
+      )
+      .orderBy(
+        desc(
+          sql`count(distinct ${annotations.id}) + count(distinct ${stackArticles.id})`
+        )
+      )
+      .limit(5);
+
+    return rows.map((r) => ({
+      ...r,
+      highlightCount: Number(r.highlightCount),
+      stackCount: Number(r.stackCount),
+    }));
+  }),
 
   getById: publicProcedure
     .input(z.object({ id: z.string() }))

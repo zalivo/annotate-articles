@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
+import { trpc } from "@/trpc/client";
 
 export default function Home() {
     const router = useRouter();
@@ -50,6 +51,10 @@ export default function Home() {
             setStatus("error");
         }
     }
+
+    const { data: trending } = trpc.articles.trending.useQuery(undefined, {
+        staleTime: 60_000,
+    });
 
     const isLoading = status === "loading";
 
@@ -224,6 +229,72 @@ export default function Home() {
                             </p>
                         )}
                     </form>
+
+                    {/* Trending articles */}
+                    {trending && trending.length > 0 && (
+                        <section className="w-full flex flex-col gap-3">
+                            <h2
+                                className="text-xs tracking-widest uppercase"
+                                style={{
+                                    color: "var(--ink-faint)",
+                                    fontFamily: "var(--font-geist-sans)",
+                                }}
+                            >
+                                Most Highlighted
+                            </h2>
+
+                            <div className="flex flex-col gap-2">
+                                {trending.map((article) => (
+                                    <Link
+                                        key={article.id}
+                                        href={`/article/${article.id}`}
+                                        className="flex items-baseline justify-between gap-4 rounded-lg px-4 py-3 transition-colors"
+                                        style={{
+                                            background: "#fff",
+                                            border: "1px solid var(--border)",
+                                            fontFamily: "var(--font-geist-sans)",
+                                        }}
+                                    >
+                                        <div className="min-w-0 flex-1">
+                                            <p
+                                                className="text-sm font-medium truncate"
+                                                style={{ color: "var(--ink)" }}
+                                            >
+                                                {article.title}
+                                            </p>
+                                            {article.siteName && (
+                                                <p
+                                                    className="text-xs mt-0.5 truncate"
+                                                    style={{ color: "var(--ink-faint)" }}
+                                                >
+                                                    {article.siteName}
+                                                    {article.author
+                                                        ? ` · ${article.author}`
+                                                        : ""}
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        <div
+                                            className="flex items-center gap-3 shrink-0 text-xs"
+                                            style={{ color: "var(--ink-muted)" }}
+                                        >
+                                            {article.highlightCount > 0 && (
+                                                <span>
+                                                    Highlighted: {article.highlightCount}
+                                                </span>
+                                            )}
+                                            {article.stackCount > 0 && (
+                                                <span>
+                                                    Stacked: {article.stackCount}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        </section>
+                    )}
                 </div>
             </main>
 
