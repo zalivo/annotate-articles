@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "../trpc";
 import { sharedLinks, articles, annotations, users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 export const sharedLinksRouter = router({
@@ -50,7 +50,10 @@ export const sharedLinksRouter = router({
       const articleAnnotations = await ctx.db
         .select()
         .from(annotations)
-        .where(eq(annotations.articleId, link.articleId));
+        .where(and(
+          eq(annotations.articleId, link.articleId),
+          eq(annotations.creatorId, link.creatorId),
+        ));
 
       const [creator] = await ctx.db
         .select({ id: users.id, name: users.name })

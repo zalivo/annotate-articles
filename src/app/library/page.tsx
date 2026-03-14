@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { LibraryArticleRow } from "./LibraryArticleRow";
 import { SignOutButton } from "./SignOutButton";
+import { LibraryTabs } from "./LibraryTabs";
 import { createServerClient } from "@supabase/ssr";
 import { db } from "@/db";
-import { users, articles, annotations } from "@/db/schema";
+import { users, articles, annotations, stacks, stackArticles } from "@/db/schema";
 import { eq, inArray, sql } from "drizzle-orm";
 import type { Metadata } from "next";
 
@@ -69,10 +69,26 @@ export default async function LibraryPage() {
     annotationCounts.map((r) => [r.articleId, r.count])
   );
 
-  // Sort by most recently annotated (annotation count as a proxy — articles don't have per-user timestamps)
   const sorted = [...userArticles].sort(
     (a, b) => (countMap[b.id] ?? 0) - (countMap[a.id] ?? 0)
   );
+
+  // Fetch user's stacks with article counts
+  const userStacks = await db
+    .select({
+      id: stacks.id,
+      slug: stacks.slug,
+      title: stacks.title,
+      description: stacks.description,
+      visibility: stacks.visibility,
+      createdAt: stacks.createdAt,
+      articleCount: sql<number>`cast(count(${stackArticles.id}) as int)`,
+    })
+    .from(stacks)
+    .leftJoin(stackArticles, eq(stackArticles.stackId, stacks.id))
+    .where(eq(stacks.creatorId, dbUser.id))
+    .groupBy(stacks.id)
+    .orderBy(stacks.createdAt);
 
   return (
     <div className="min-h-screen" style={{ background: "var(--cream)" }}>
@@ -100,50 +116,25 @@ export default async function LibraryPage() {
       </nav>
 
       <main className="mx-auto px-6 py-16" style={{ maxWidth: "720px" }}>
-        <header className="mb-12">
+        <header className="mb-8">
           <h1
             className="text-4xl leading-tight mb-2"
             style={{ fontFamily: "var(--font-lora)", color: "var(--ink)" }}
           >
             My Library
           </h1>
-          <p
-            className="text-sm"
-            style={{ color: "var(--ink-faint)", fontFamily: "var(--font-geist-sans)" }}
-          >
-            {userArticles.length === 0
-              ? "No annotated articles yet."
-              : `${userArticles.length} article${userArticles.length === 1 ? "" : "s"}`}
-          </p>
         </header>
 
-        {userArticles.length === 0 ? (
-          <div className="flex flex-col items-center gap-4 py-24 text-center">
-            <p
-              className="text-lg italic"
-              style={{ color: "var(--ink-muted)", fontFamily: "var(--font-lora)" }}
-            >
-              Nothing here yet.
-            </p>
-            <Link
-              href="/"
-              className="text-sm tracking-widest uppercase transition-opacity hover:opacity-60"
-              style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
-            >
-              Paste your first article →
-            </Link>
-          </div>
-        ) : (
-          <ul className="flex flex-col divide-y" style={{ borderColor: "var(--border)" }}>
-            {sorted.map((article) => (
-              <LibraryArticleRow
-                key={article.id}
-                article={article}
-                annotationCount={countMap[article.id] ?? 0}
-              />
-            ))}
-          </ul>
-        )}
+        <LibraryTabs
+          articles={sorted.map((a) => ({
+            id: a.id,
+            title: a.title,
+            siteName: a.siteName,
+            author: a.author,
+          }))}
+          countMap={countMap}
+          stacks={userStacks}
+        />
       </main>
     </div>
   );

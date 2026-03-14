@@ -6,6 +6,7 @@ import type { Paragraph } from "@/db/schema";
 
 type Annotation = {
   id: string;
+  creatorId?: string;
   startParagraphId: string;
   startOffset: number;
   endParagraphId: string;
@@ -13,6 +14,8 @@ type Annotation = {
   highlightedText: string;
   comment: string | null;
   color: string;
+  visibility?: string;
+  creatorName?: string | null;
 };
 
 interface Props {
@@ -20,6 +23,7 @@ interface Props {
   paragraphs: Paragraph[];
   readOnly?: boolean;
   initialAnnotations?: Annotation[];
+  currentUserId?: string;
 }
 
 interface PendingSelection {
@@ -41,22 +45,33 @@ const HIGHLIGHT_COLORS: Record<string, { active: string; dim: string }> = {
   pink:   { active: "#FF7099", dim: "#FFB3CC" },
 };
 
-export function ArticleReader({ articleId, paragraphs, readOnly = false, initialAnnotations = [] }: Props) {
+export function ArticleReader({ articleId, paragraphs, readOnly = false, initialAnnotations = [], currentUserId }: Props) {
   const [annotations, setAnnotations] = useState<Annotation[]>(initialAnnotations as Annotation[]);
   const [pending, setPending] = useState<PendingSelection | null>(null);
   const [comment, setComment] = useState("");
   const [selectedColor, setSelectedColor] = useState("yellow");
+  const [selectedVisibility, setSelectedVisibility] = useState<"private" | "public">("private");
   const [saveError, setSaveError] = useState("");
   const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
+  const [showCommunity, setShowCommunity] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
 
+  // Split annotations into own vs others
+  const myAnnotations = annotations.filter((a) => !currentUserId || a.creatorId === currentUserId || !a.creatorId);
+  const othersAnnotations = annotations.filter((a) => currentUserId && a.creatorId && a.creatorId !== currentUserId);
+  const hasOthersAnnotations = othersAnnotations.length > 0;
+
+  // Annotations to display: always show own, optionally show others
+  const displayAnnotations = showCommunity ? annotations : myAnnotations;
+
   const createAnnotation = trpc.annotations.create.useMutation({
     onSuccess: (annotation) => {
-      setAnnotations((prev) => [...prev, annotation as Annotation]);
+      setAnnotations((prev) => [...prev, { ...annotation, creatorId: currentUserId, visibility: selectedVisibility } as Annotation]);
       setPending(null);
       setComment("");
       setSelectedColor("yellow");
+      setSelectedVisibility("private");
       setSaveError("");
     },
     onError: (err) => {
@@ -72,6 +87,15 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
     onSuccess: (_, variables) => {
       setAnnotations((prev) => prev.filter((a) => a.id !== (variables as { id: string }).id));
       setActiveAnnotationId(null);
+    },
+  });
+
+  const updateAnnotation = trpc.annotations.update.useMutation({
+    onSuccess: (updated) => {
+      if (!updated) return;
+      setAnnotations((prev) =>
+        prev.map((a) => a.id === updated.id ? { ...a, visibility: updated.visibility, comment: updated.comment } : a)
+      );
     },
   });
 
@@ -127,6 +151,7 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
       ...pending,
       comment: comment.trim(),
       color: selectedColor,
+      visibility: selectedVisibility,
     });
   }
 
@@ -137,6 +162,7 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
       articleId,
       ...pending,
       color: selectedColor,
+      visibility: selectedVisibility,
     });
   }
 
@@ -144,15 +170,50 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
     setPending(null);
     setComment("");
     setSelectedColor("yellow");
+    setSelectedVisibility("private");
     setSaveError("");
     window.getSelection()?.removeAllRanges();
   }
 
+  function toggleVisibility(ann: Annotation) {
+    const newVis = ann.visibility === "public" ? "private" : "public";
+    updateAnnotation.mutate({ id: ann.id, visibility: newVis });
+  }
+
   // Build a map: paragraphId → list of highlights with their offsets
-  const highlightMap = buildHighlightMap(annotations);
+  const highlightMap = buildHighlightMap(displayAnnotations, currentUserId);
 
   return (
     <div ref={containerRef} className="relative" onClick={() => setActiveAnnotationId(null)}>
+      {/* Community highlights toggle */}
+      {hasOthersAnnotations && !readOnly && (
+        <div
+          className="flex items-center gap-2 mb-6 pb-4 border-b"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <button
+            onClick={() => setShowCommunity((v) => !v)}
+            className="flex items-center gap-2 text-xs transition-opacity hover:opacity-70 cursor-pointer"
+            style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
+          >
+            <span
+              className="inline-flex items-center justify-center w-4 h-4 rounded border transition-colors"
+              style={{
+                borderColor: showCommunity ? "var(--ink)" : "var(--ink-faint)",
+                background: showCommunity ? "var(--ink)" : "transparent",
+              }}
+            >
+              {showCommunity && (
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M2 5l2.5 2.5L8 3" stroke="var(--cream)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </span>
+            Show community highlights ({othersAnnotations.length})
+          </button>
+        </div>
+      )}
+
       {/* Two-column layout: article + sidebar */}
       <div className="flex gap-0">
         {/* Article column */}
@@ -178,20 +239,24 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
         {/* Sidebar — margin comments */}
         <div className="hidden lg:block w-72 shrink-0 pl-10 relative">
           <CommentSidebar
-            annotations={annotations.filter((a) => a.comment)}
+            annotations={displayAnnotations.filter((a) => a.comment)}
             paragraphs={paragraphs}
             activeAnnotationId={activeAnnotationId}
             onSelect={setActiveAnnotationId}
             onDelete={readOnly ? undefined : (id) => deleteAnnotation.mutate({ id })}
+            onToggleVisibility={readOnly ? undefined : toggleVisibility}
             readerRef={containerRef}
+            currentUserId={currentUserId}
           />
         </div>
       </div>
 
       {/* Floating delete popover for highlight-only annotations */}
       {!readOnly && activeAnnotationId && (() => {
-        const ann = annotations.find((a) => a.id === activeAnnotationId);
+        const ann = displayAnnotations.find((a) => a.id === activeAnnotationId);
         if (!ann || ann.comment) return null;
+        const isOthersAnn = !!(currentUserId && ann.creatorId && ann.creatorId !== currentUserId);
+        if (isOthersAnn) return null;
         const markEl = containerRef.current?.querySelector<HTMLElement>(
           `[data-annotation-id="${activeAnnotationId}"]`
         );
@@ -242,21 +307,41 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
             </p>
           </div>
           <div className="p-3 flex flex-col gap-2">
-            <div className="flex gap-1.5">
-              {Object.entries(HIGHLIGHT_COLORS).map(([name, { active }]) => (
-                <button
-                  key={name}
-                  onClick={() => setSelectedColor(name)}
-                  className="w-5 h-5 rounded-full transition-transform cursor-pointer"
-                  style={{
-                    background: active,
-                    outline: selectedColor === name ? `2px solid ${active}` : "none",
-                    outlineOffset: "2px",
-                    transform: selectedColor === name ? "scale(1.15)" : "scale(1)",
-                  }}
-                  title={name}
-                />
-              ))}
+            <div className="flex items-center gap-3">
+              <div className="flex gap-1.5">
+                {Object.entries(HIGHLIGHT_COLORS).map(([name, { active }]) => (
+                  <button
+                    key={name}
+                    onClick={() => setSelectedColor(name)}
+                    className="w-5 h-5 rounded-full transition-transform cursor-pointer"
+                    style={{
+                      background: active,
+                      outline: selectedColor === name ? `2px solid ${active}` : "none",
+                      outlineOffset: "2px",
+                      transform: selectedColor === name ? "scale(1.15)" : "scale(1)",
+                    }}
+                    title={name}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={() => setSelectedVisibility((v) => v === "private" ? "public" : "private")}
+                className="flex items-center gap-1 text-xs transition-opacity hover:opacity-70 cursor-pointer shrink-0"
+                style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
+                title={selectedVisibility === "public" ? "Visible to everyone" : "Only visible to you"}
+              >
+                {selectedVisibility === "public" ? (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2" />
+                    <path d="M1.5 7h11M7 1.5c-1.5 1.5-2 3.5-2 5.5s.5 4 2 5.5M7 1.5c1.5 1.5 2 3.5 2 5.5s-.5 4-2 5.5" stroke="currentColor" strokeWidth="1.2" />
+                  </svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <rect x="3" y="6" width="8" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
+                    <path d="M5 6V4.5a2 2 0 0 1 4 0V6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                  </svg>
+                )}
+              </button>
             </div>
             <textarea
               ref={commentInputRef}
@@ -320,13 +405,16 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
 
       {/* Mobile: active annotation card */}
       {activeAnnotationId && (() => {
-        const ann = annotations.find((a) => a.id === activeAnnotationId);
+        const ann = displayAnnotations.find((a) => a.id === activeAnnotationId);
         if (!ann) return null;
+        const isOthers = !!(currentUserId && ann.creatorId && ann.creatorId !== currentUserId);
         return (
           <MobileAnnotationCard
             annotation={ann}
             onClose={() => setActiveAnnotationId(null)}
-            onDelete={readOnly ? undefined : (id) => deleteAnnotation.mutate({ id })}
+            onDelete={readOnly || isOthers ? undefined : (id) => deleteAnnotation.mutate({ id })}
+            onToggleVisibility={readOnly || isOthers ? undefined : toggleVisibility}
+            isOthers={isOthers}
           />
         );
       })()}
@@ -341,6 +429,7 @@ interface HighlightRange {
   start: number;
   end: number;
   color: string;
+  isOthers: boolean;
 }
 
 function ParagraphBlock({
@@ -461,7 +550,12 @@ function renderWithHighlights(
           data-annotation-id={h.annotationId}
           onClick={(e) => { e.stopPropagation(); onHighlightClick(h.annotationId); }}
           className="cursor-pointer rounded-sm transition-colors"
-          style={{
+          style={h.isOthers ? {
+            background: "transparent",
+            borderBottom: `2px dashed ${palette.dim}`,
+            color: "var(--ink)",
+            padding: "1px 0",
+          } : {
             background: isActive ? palette.active : palette.dim,
             color: "var(--ink)",
             padding: "1px 1px",
@@ -489,14 +583,18 @@ function CommentSidebar({
   activeAnnotationId,
   onSelect,
   onDelete,
+  onToggleVisibility,
   readerRef,
+  currentUserId,
 }: {
   annotations: Annotation[];
   paragraphs: Paragraph[];
   activeAnnotationId: string | null;
   onSelect: (id: string | null) => void;
   onDelete?: (id: string) => void;
+  onToggleVisibility?: (ann: Annotation) => void;
   readerRef: React.RefObject<HTMLDivElement | null>;
+  currentUserId?: string;
 }) {
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [offsets, setOffsets] = useState<Record<string, number>>({});
@@ -542,6 +640,7 @@ function CommentSidebar({
     <div className="relative" style={{ minHeight: "100%" }}>
       {annotations.map((ann) => {
         const isActive = ann.id === activeAnnotationId;
+        const isOthers = !!(currentUserId && ann.creatorId && ann.creatorId !== currentUserId);
         return (
           <div
             key={ann.id}
@@ -553,28 +652,65 @@ function CommentSidebar({
               onClick={(e) => { e.stopPropagation(); onSelect(isActive ? null : ann.id); }}
               className="rounded-lg p-3 cursor-pointer transition-all"
               style={{
-                background: "#fff",
-                border: "1px solid var(--border)",
+                background: isOthers ? "var(--cream)" : "#fff",
+                border: `1px solid ${isOthers ? "var(--ink-faint)" : "var(--border)"}`,
+                borderStyle: isOthers ? "dashed" : "solid",
                 boxShadow: isActive ? "0 2px 8px rgba(28,23,16,0.08)" : "none",
               }}
             >
+              {isOthers && ann.creatorName && (
+                <p
+                  className="text-[10px] uppercase tracking-wider mb-1"
+                  style={{ color: "var(--ink-faint)", fontFamily: "var(--font-geist-sans)" }}
+                >
+                  {ann.creatorName}
+                </p>
+              )}
               <p
                 className="text-xs leading-relaxed"
                 style={{ color: "var(--ink)", fontFamily: "var(--font-geist-sans)" }}
               >
                 {ann.comment}
               </p>
-              {isActive && onDelete && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(ann.id);
-                  }}
-                  className="mt-2 text-xs transition-opacity hover:opacity-60 cursor-pointer"
-                  style={{ color: "#D94F3D", fontFamily: "var(--font-geist-sans)" }}
-                >
-                  Delete
-                </button>
+              {isActive && !isOthers && (
+                <div className="flex items-center gap-3 mt-2">
+                  {onToggleVisibility && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleVisibility(ann);
+                      }}
+                      className="flex items-center gap-1 text-xs transition-opacity hover:opacity-60 cursor-pointer"
+                      style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
+                      title={ann.visibility === "public" ? "Public — click to make private" : "Private — click to make public"}
+                    >
+                      {ann.visibility === "public" ? (
+                        <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                          <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2" />
+                          <path d="M1.5 7h11M7 1.5c-1.5 1.5-2 3.5-2 5.5s.5 4 2 5.5M7 1.5c1.5 1.5 2 3.5 2 5.5s-.5 4-2 5.5" stroke="currentColor" strokeWidth="1.2" />
+                        </svg>
+                      ) : (
+                        <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                          <rect x="3" y="6" width="8" height="6" rx="1" stroke="currentColor" strokeWidth="1.2" />
+                          <path d="M5 6V4.5a2 2 0 0 1 4 0V6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                        </svg>
+                      )}
+                      {ann.visibility === "public" ? "Public" : "Private"}
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(ann.id);
+                      }}
+                      className="text-xs transition-opacity hover:opacity-60 cursor-pointer"
+                      style={{ color: "#D94F3D", fontFamily: "var(--font-geist-sans)" }}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -590,10 +726,14 @@ function MobileAnnotationCard({
   annotation,
   onClose,
   onDelete,
+  onToggleVisibility,
+  isOthers,
 }: {
   annotation: Annotation;
   onClose: () => void;
   onDelete?: (id: string) => void;
+  onToggleVisibility?: (ann: Annotation) => void;
+  isOthers?: boolean;
 }) {
   if (!annotation) return null;
   return (
@@ -601,18 +741,28 @@ function MobileAnnotationCard({
       <div
         className="rounded-2xl p-4 shadow-2xl"
         style={{
-          background: "#fff",
-          border: "1px solid var(--border)",
+          background: isOthers ? "var(--cream)" : "#fff",
+          border: `1px ${isOthers ? "dashed" : "solid"} var(--border)`,
           boxShadow: "0 -4px 32px rgba(28,23,16,0.12)",
         }}
       >
         <div className="flex items-start justify-between gap-3 mb-2">
-          <p
-            className="text-xs italic line-clamp-2"
-            style={{ color: "var(--ink-muted)", fontFamily: "var(--font-lora)" }}
-          >
-            &ldquo;{annotation.highlightedText}&rdquo;
-          </p>
+          <div>
+            {isOthers && annotation.creatorName && (
+              <p
+                className="text-[10px] uppercase tracking-wider mb-1"
+                style={{ color: "var(--ink-faint)", fontFamily: "var(--font-geist-sans)" }}
+              >
+                {annotation.creatorName}
+              </p>
+            )}
+            <p
+              className="text-xs italic line-clamp-2"
+              style={{ color: "var(--ink-muted)", fontFamily: "var(--font-lora)" }}
+            >
+              &ldquo;{annotation.highlightedText}&rdquo;
+            </p>
+          </div>
           <button onClick={onClose} className="shrink-0 opacity-40 hover:opacity-70 transition-opacity cursor-pointer">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -624,15 +774,26 @@ function MobileAnnotationCard({
             {annotation.comment}
           </p>
         )}
-        {onDelete && (
-          <button
-            onClick={() => onDelete(annotation.id)}
-            className="mt-3 text-xs transition-opacity hover:opacity-60 cursor-pointer"
-            style={{ color: "#D94F3D", fontFamily: "var(--font-geist-sans)" }}
-          >
-            Delete annotation
-          </button>
-        )}
+        <div className="flex items-center gap-3 mt-3">
+          {onToggleVisibility && (
+            <button
+              onClick={() => onToggleVisibility(annotation)}
+              className="flex items-center gap-1 text-xs transition-opacity hover:opacity-60 cursor-pointer"
+              style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
+            >
+              {annotation.visibility === "public" ? "Public" : "Private"}
+            </button>
+          )}
+          {onDelete && (
+            <button
+              onClick={() => onDelete(annotation.id)}
+              className="text-xs transition-opacity hover:opacity-60 cursor-pointer"
+              style={{ color: "#D94F3D", fontFamily: "var(--font-geist-sans)" }}
+            >
+              Delete
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -671,9 +832,10 @@ function getOffsetTopRelativeTo(el: HTMLElement, ancestor: HTMLElement | null): 
   return top;
 }
 
-function buildHighlightMap(annotations: Annotation[]): Record<string, HighlightRange[]> {
+function buildHighlightMap(annotations: Annotation[], currentUserId?: string): Record<string, HighlightRange[]> {
   const map: Record<string, HighlightRange[]> = {};
   for (const ann of annotations) {
+    const isOthers = !!(currentUserId && ann.creatorId && ann.creatorId !== currentUserId);
     // For same-paragraph highlights
     if (ann.startParagraphId === ann.endParagraphId) {
       if (!map[ann.startParagraphId]) map[ann.startParagraphId] = [];
@@ -682,6 +844,7 @@ function buildHighlightMap(annotations: Annotation[]): Record<string, HighlightR
         start: ann.startOffset,
         end: ann.endOffset,
         color: ann.color,
+        isOthers,
       });
     } else {
       // Cross-paragraph: highlight to end of start paragraph, from start of end paragraph
@@ -691,6 +854,7 @@ function buildHighlightMap(annotations: Annotation[]): Record<string, HighlightR
         start: ann.startOffset,
         end: Infinity,
         color: ann.color,
+        isOthers,
       });
       if (!map[ann.endParagraphId]) map[ann.endParagraphId] = [];
       map[ann.endParagraphId].push({
@@ -698,6 +862,7 @@ function buildHighlightMap(annotations: Annotation[]): Record<string, HighlightR
         start: 0,
         end: ann.endOffset,
         color: ann.color,
+        isOthers,
       });
     }
   }

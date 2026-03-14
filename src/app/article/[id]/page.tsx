@@ -1,12 +1,15 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 import { db } from "@/db";
-import { articles, annotations } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { articles, annotations, users, stacks, stackArticles } from "@/db/schema";
+import { eq, and, or, sql } from "drizzle-orm";
 import type { Paragraph } from "@/db/schema";
 import type { Metadata } from "next";
 import { ArticleReader } from "./ArticleReader";
 import { ShareButton } from "./ShareButton";
+import { AddToStackButton } from "./AddToStackButton";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -35,10 +38,114 @@ export default async function ArticlePage({ params }: Props) {
 
   if (!article) notFound();
 
-  const existingAnnotations = await db
-    .select()
-    .from(annotations)
-    .where(eq(annotations.articleId, id));
+  // Resolve current user (if signed in)
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll() {},
+      },
+    }
+  );
+  const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+
+  let currentUserId: string | null = null;
+  if (supabaseUser?.email) {
+    const [dbUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, supabaseUser.email))
+      .limit(1);
+    currentUserId = dbUser?.id ?? null;
+  }
+
+  // Fetch user's stacks for "Add to Stack" button
+  const userStacks = currentUserId
+    ? await db
+        .select({
+          id: stacks.id,
+          title: stacks.title,
+          slug: stacks.slug,
+        })
+        .from(stacks)
+        .where(eq(stacks.creatorId, currentUserId))
+        .orderBy(stacks.createdAt)
+    : [];
+
+  // Check which stacks already contain this article
+  const stacksWithArticle = currentUserId && userStacks.length > 0
+    ? await db
+        .select({ stackId: stackArticles.stackId })
+        .from(stackArticles)
+        .where(
+          and(
+            eq(stackArticles.articleId, id),
+            sql`${stackArticles.stackId} IN (${sql.join(
+              userStacks.map((s) => sql`${s.id}`),
+              sql`, `
+            )})`
+          )
+        )
+    : [];
+
+  const stackIdsWithArticle = new Set(stacksWithArticle.map((r) => r.stackId));
+
+  // Fetch own annotations (all) + others' public annotations
+  const existingAnnotations = currentUserId
+    ? await db
+        .select({
+          id: annotations.id,
+          articleId: annotations.articleId,
+          creatorId: annotations.creatorId,
+          startParagraphId: annotations.startParagraphId,
+          startOffset: annotations.startOffset,
+          endParagraphId: annotations.endParagraphId,
+          endOffset: annotations.endOffset,
+          highlightedText: annotations.highlightedText,
+          comment: annotations.comment,
+          color: annotations.color,
+          visibility: annotations.visibility,
+          createdAt: annotations.createdAt,
+          updatedAt: annotations.updatedAt,
+          creatorName: users.name,
+        })
+        .from(annotations)
+        .leftJoin(users, eq(users.id, annotations.creatorId))
+        .where(and(
+          eq(annotations.articleId, id),
+          or(
+            eq(annotations.creatorId, currentUserId),
+            eq(annotations.visibility, "public"),
+          ),
+        ))
+    : await db
+        .select({
+          id: annotations.id,
+          articleId: annotations.articleId,
+          creatorId: annotations.creatorId,
+          startParagraphId: annotations.startParagraphId,
+          startOffset: annotations.startOffset,
+          endParagraphId: annotations.endParagraphId,
+          endOffset: annotations.endOffset,
+          highlightedText: annotations.highlightedText,
+          comment: annotations.comment,
+          color: annotations.color,
+          visibility: annotations.visibility,
+          createdAt: annotations.createdAt,
+          updatedAt: annotations.updatedAt,
+          creatorName: users.name,
+        })
+        .from(annotations)
+        .leftJoin(users, eq(users.id, annotations.creatorId))
+        .where(and(
+          eq(annotations.articleId, id),
+          eq(annotations.visibility, "public"),
+        ));
 
   const paragraphs = article.paragraphs as Paragraph[];
 
@@ -87,7 +194,18 @@ export default async function ArticlePage({ params }: Props) {
           </svg>
           Read original article
         </a>
-        <ShareButton articleId={id} />
+        <div className="flex items-center gap-2">
+          {currentUserId && (
+            <AddToStackButton
+              articleId={id}
+              stacks={userStacks.map((s) => ({
+                ...s,
+                hasArticle: stackIdsWithArticle.has(s.id),
+              }))}
+            />
+          )}
+          <ShareButton articleId={id} />
+        </div>
       </div>
 
       {/* Article content */}
@@ -124,6 +242,7 @@ export default async function ArticlePage({ params }: Props) {
           articleId={id}
           paragraphs={paragraphs}
           initialAnnotations={existingAnnotations}
+          currentUserId={currentUserId ?? undefined}
         />
 
         {/* Footer */}
