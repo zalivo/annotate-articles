@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useLayoutEffect, useCallback } from "react";
+import React, { useState, useRef, useLayoutEffect, useCallback, useEffect } from "react";
 import { trpc } from "@/trpc/client";
 import type { Paragraph } from "@/db/schema";
 
@@ -139,6 +139,9 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
       },
     });
 
+    // Clear browser selection so our custom highlight preview is visible
+    sel.removeAllRanges();
+
     // Focus comment input after paint
     setTimeout(() => commentInputRef.current?.focus(), 50);
   }, [readOnly]);
@@ -182,6 +185,73 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
 
   // Build a map: paragraphId → list of highlights with their offsets
   const highlightMap = buildHighlightMap(displayAnnotations, currentUserId);
+
+  // Inject pending selection as a live preview highlight
+  if (pending) {
+    const previewRange: HighlightRange = {
+      annotationId: "__pending__",
+      start: pending.startOffset,
+      end: pending.endOffset,
+      color: selectedColor,
+      isOthers: false,
+    };
+    if (pending.startParagraphId === pending.endParagraphId) {
+      if (!highlightMap[pending.startParagraphId]) highlightMap[pending.startParagraphId] = [];
+      highlightMap[pending.startParagraphId].push(previewRange);
+    } else {
+      if (!highlightMap[pending.startParagraphId]) highlightMap[pending.startParagraphId] = [];
+      highlightMap[pending.startParagraphId].push({ ...previewRange, end: Infinity });
+      if (!highlightMap[pending.endParagraphId]) highlightMap[pending.endParagraphId] = [];
+      highlightMap[pending.endParagraphId].push({ ...previewRange, start: 0 });
+    }
+  }
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    if (readOnly) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      // Don't capture when typing in an input/textarea
+      if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
+
+      if (e.key === "Escape") {
+        if (pending) {
+          cancelPending();
+        } else if (activeAnnotationId) {
+          setActiveAnnotationId(null);
+        }
+        return;
+      }
+
+      // Cmd/Ctrl+H = save as highlight-only when there's a pending selection
+      if (e.key === "h" && pending && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        saveHighlightOnly();
+        return;
+      }
+
+      // Navigate between annotations with j/k
+      if ((e.key === "j" || e.key === "k") && !pending) {
+        const sorted = [...displayAnnotations].sort((a, b) => {
+          const pA = paragraphs.findIndex((p) => p.id === a.startParagraphId);
+          const pB = paragraphs.findIndex((p) => p.id === b.startParagraphId);
+          return pA !== pB ? pA - pB : a.startOffset - b.startOffset;
+        });
+        if (sorted.length === 0) return;
+        const currentIdx = activeAnnotationId ? sorted.findIndex((a) => a.id === activeAnnotationId) : -1;
+        const nextIdx = e.key === "j"
+          ? Math.min(currentIdx + 1, sorted.length - 1)
+          : Math.max(currentIdx - 1, 0);
+        const next = sorted[nextIdx];
+        setActiveAnnotationId(next.id);
+
+        // Scroll the highlight into view
+        const el = document.querySelector(`[data-annotation-id="${next.id}"]`);
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [readOnly, pending, activeAnnotationId, displayAnnotations, paragraphs]);
 
   return (
     <div ref={containerRef} className="relative" onClick={() => setActiveAnnotationId(null)}>
@@ -269,7 +339,7 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
             style={{
               top: markRect.bottom - containerRect.top + 6,
               left: markRect.left - containerRect.left,
-              background: "#fff",
+              background: "var(--card)",
               borderColor: "var(--border)",
               boxShadow: "0 4px 16px rgba(28,23,16,0.10)",
             }}
@@ -278,7 +348,7 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
             <button
               onClick={() => deleteAnnotation.mutate({ id: activeAnnotationId })}
               className="text-xs transition-opacity hover:opacity-60 cursor-pointer"
-              style={{ color: "#D94F3D", fontFamily: "var(--font-geist-sans)" }}
+              style={{ color: "var(--danger)", fontFamily: "var(--font-geist-sans)" }}
             >
               Remove highlight
             </button>
@@ -293,7 +363,7 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
           style={{
             top: pending.rect.top,
             left: Math.min(pending.rect.left, (containerRef.current?.offsetWidth ?? 680) - 300),
-            background: "#fff",
+            background: "var(--card)",
             borderColor: "var(--border)",
             boxShadow: "0 8px 32px rgba(28,23,16,0.14)",
           }}
@@ -357,11 +427,12 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
               }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveAnnotation();
+                if (e.key === "h" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveHighlightOnly(); }
                 if (e.key === "Escape") cancelPending();
               }}
             />
             {saveError && (
-              <p className="text-xs px-0.5" style={{ color: "#D94F3D", fontFamily: "var(--font-geist-sans)" }}>
+              <p className="text-xs px-0.5" style={{ color: "var(--danger)", fontFamily: "var(--font-geist-sans)" }}>
                 {saveError}
               </p>
             )}
@@ -402,6 +473,9 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
           </div>
         </div>
       )}
+
+      {/* Keyboard shortcuts button */}
+      {!readOnly && <ShortcutsButton />}
 
       {/* Mobile: active annotation card */}
       {activeAnnotationId && (() => {
@@ -542,22 +616,23 @@ function renderWithHighlights(
     const start = Math.max(h.start, cursor);
     const end = Math.min(h.end, text.length);
     if (start < end) {
+      const isPending = h.annotationId === "__pending__";
       const isActive = h.annotationId === activeAnnotationId;
       const palette = HIGHLIGHT_COLORS[h.color] ?? HIGHLIGHT_COLORS.yellow;
       segments.push(
         <mark
           key={h.annotationId}
           data-annotation-id={h.annotationId}
-          onClick={(e) => { e.stopPropagation(); onHighlightClick(h.annotationId); }}
-          className="cursor-pointer rounded-sm transition-colors"
+          onClick={(e) => { if (!isPending) { e.stopPropagation(); onHighlightClick(h.annotationId); } }}
+          className={isPending ? "rounded-sm" : "cursor-pointer rounded-sm transition-colors"}
           style={h.isOthers ? {
             background: "transparent",
             borderBottom: `2px dashed ${palette.dim}`,
             color: "var(--ink)",
             padding: "1px 0",
           } : {
-            background: isActive ? palette.active : palette.dim,
-            color: "var(--ink)",
+            background: isPending ? palette.active : isActive ? palette.active : palette.dim,
+            color: "#1C1710",
             padding: "1px 1px",
           }}
         >
@@ -652,7 +727,7 @@ function CommentSidebar({
               onClick={(e) => { e.stopPropagation(); onSelect(isActive ? null : ann.id); }}
               className="rounded-lg p-3 cursor-pointer transition-all"
               style={{
-                background: isOthers ? "var(--cream)" : "#fff",
+                background: isOthers ? "var(--cream)" : "var(--card)",
                 border: `1px solid ${isOthers ? "var(--ink-faint)" : "var(--border)"}`,
                 borderStyle: isOthers ? "dashed" : "solid",
                 boxShadow: isActive ? "0 2px 8px rgba(28,23,16,0.08)" : "none",
@@ -705,7 +780,7 @@ function CommentSidebar({
                         onDelete(ann.id);
                       }}
                       className="text-xs transition-opacity hover:opacity-60 cursor-pointer"
-                      style={{ color: "#D94F3D", fontFamily: "var(--font-geist-sans)" }}
+                      style={{ color: "var(--danger)", fontFamily: "var(--font-geist-sans)" }}
                     >
                       Delete
                     </button>
@@ -741,7 +816,7 @@ function MobileAnnotationCard({
       <div
         className="rounded-2xl p-4 shadow-2xl"
         style={{
-          background: isOthers ? "var(--cream)" : "#fff",
+          background: isOthers ? "var(--cream)" : "var(--card)",
           border: `1px ${isOthers ? "dashed" : "solid"} var(--border)`,
           boxShadow: "0 -4px 32px rgba(28,23,16,0.12)",
         }}
@@ -788,7 +863,7 @@ function MobileAnnotationCard({
             <button
               onClick={() => onDelete(annotation.id)}
               className="text-xs transition-opacity hover:opacity-60 cursor-pointer"
-              style={{ color: "#D94F3D", fontFamily: "var(--font-geist-sans)" }}
+              style={{ color: "var(--danger)", fontFamily: "var(--font-geist-sans)" }}
             >
               Delete
             </button>
@@ -830,6 +905,89 @@ function getOffsetTopRelativeTo(el: HTMLElement, ancestor: HTMLElement | null): 
     node = node.offsetParent as HTMLElement | null;
   }
   return top;
+}
+
+function ShortcutsButton() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent);
+  const mod = isMac ? "⌘" : "Ctrl+";
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  const shortcuts = [
+    { keys: `${mod}H`, label: "Highlight only" },
+    { keys: `${mod}↵`, label: "Save with comment" },
+    { keys: "Esc", label: "Cancel / deselect" },
+    { keys: "J / K", label: "Navigate highlights" },
+  ];
+
+  return (
+    <div ref={ref} className="fixed bottom-5 right-5 z-40">
+      {open && (
+        <div
+          className="absolute bottom-full right-0 mb-2 rounded-xl p-3 shadow-xl border min-w-[200px]"
+          style={{
+            background: "var(--card)",
+            borderColor: "var(--border)",
+            boxShadow: "0 8px 32px rgba(28,23,16,0.14)",
+          }}
+        >
+          <p
+            className="text-[10px] uppercase tracking-wider mb-2"
+            style={{ color: "var(--ink-faint)", fontFamily: "var(--font-geist-sans)" }}
+          >
+            Keyboard shortcuts
+          </p>
+          <div className="flex flex-col gap-1.5">
+            {shortcuts.map((s) => (
+              <div key={s.keys} className="flex items-center justify-between gap-4">
+                <span
+                  className="text-xs"
+                  style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
+                >
+                  {s.label}
+                </span>
+                <kbd
+                  className="text-[11px] px-1.5 py-0.5 rounded"
+                  style={{
+                    background: "var(--border)",
+                    color: "var(--ink)",
+                    fontFamily: "var(--font-geist-sans)",
+                  }}
+                >
+                  {s.keys}
+                </kbd>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:opacity-70 cursor-pointer"
+        style={{
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          color: "var(--ink-muted)",
+          boxShadow: "0 2px 8px rgba(28,23,16,0.08)",
+        }}
+        title="Keyboard shortcuts"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect x="1.5" y="4" width="13" height="8.5" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+          <path d="M4 7h1M7 7h2M11 7h1M4 9.5h1M6 9.5h4M11 9.5h1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+      </button>
+    </div>
+  );
 }
 
 function buildHighlightMap(annotations: Annotation[], currentUserId?: string): Record<string, HighlightRange[]> {

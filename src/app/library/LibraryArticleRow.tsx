@@ -65,9 +65,9 @@ export function LibraryArticleRow({ article, annotationCount }: Props) {
           onMouseEnter={() => setDeleteHovered(true)}
           onMouseLeave={() => setDeleteHovered(false)}
           style={{
-            background: deleteHovered ? "#fef2f2" : "transparent",
-            border: deleteHovered ? "1px solid #fca5a5" : "1px solid var(--border)",
-            color: deleteHovered ? "#ef4444" : "var(--ink-muted)",
+            background: deleteHovered ? "var(--danger-bg)" : "transparent",
+            border: deleteHovered ? "1px solid var(--danger-border)" : "1px solid var(--border)",
+            color: deleteHovered ? "var(--danger)" : "var(--ink-muted)",
             fontFamily: "var(--font-geist-sans)",
           }}
         >

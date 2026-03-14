@@ -4,10 +4,40 @@ import { db } from "@/db";
 import { sharedLinks, articles, annotations, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import type { Paragraph } from "@/db/schema";
+import type { Metadata } from "next";
 import { ArticleReader } from "@/app/article/[id]/ArticleReader";
+import { ThemeToggle } from "@/app/ThemeToggle";
 
 interface Props {
   params: Promise<{ slug: string }>;
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
+  const [link] = await db.select().from(sharedLinks).where(eq(sharedLinks.id, slug)).limit(1);
+  if (!link) return { title: "Shared highlights not found" };
+  const [article] = await db
+    .select({ title: articles.title, siteName: articles.siteName })
+    .from(articles)
+    .where(eq(articles.id, link.articleId))
+    .limit(1);
+  if (!article) return { title: "Article not found" };
+  const [creator] = await db
+    .select({ name: users.name })
+    .from(users)
+    .where(eq(users.id, link.creatorId))
+    .limit(1);
+  const title = `${article.title} — Highlight Stack`;
+  const description = creator
+    ? `Highlights by ${creator.name}${article.siteName ? ` · ${article.siteName}` : ""}`
+    : `Shared highlights${article.siteName ? ` from ${article.siteName}` : ""}`;
+  const ogImage = `/api/og?title=${encodeURIComponent(article.title)}&subtitle=${encodeURIComponent(creator ? `Highlights by ${creator.name}` : "")}&type=shared`;
+  return {
+    title,
+    description,
+    openGraph: { title, description, images: [ogImage] },
+    twitter: { card: "summary_large_image", title, description, images: [ogImage] },
+  };
 }
 
 export default async function SharedPage({ params }: Props) {
@@ -46,7 +76,7 @@ export default async function SharedPage({ params }: Props) {
     <div className="min-h-screen" style={{ background: "var(--cream)" }}>
       {/* Nav */}
       <nav
-        className="flex items-center px-8 py-4 border-b"
+        className="flex items-center justify-between px-8 py-4 border-b"
         style={{ borderColor: "var(--border)" }}
       >
         <Link
@@ -56,6 +86,7 @@ export default async function SharedPage({ params }: Props) {
         >
           ← Highlight Stack
         </Link>
+        <ThemeToggle />
       </nav>
 
       {/* Attribution banner */}

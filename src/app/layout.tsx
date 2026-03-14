@@ -22,6 +22,18 @@ const lora = Lora({
 export const metadata: Metadata = {
   title: "Highlight Stack",
   description: "Highlight and share annotated articles with friends.",
+  openGraph: {
+    title: "Highlight Stack",
+    description: "Highlight and share annotated articles with friends.",
+    type: "website",
+    images: ["/api/og"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Highlight Stack",
+    description: "Highlight and share annotated articles with friends.",
+    images: ["/api/og"],
+  },
 };
 
 export default function RootLayout({
@@ -30,7 +42,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||(!t&&matchMedia("(prefers-color-scheme:dark)").matches))document.documentElement.dataset.theme="dark"}catch(e){}})()`,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${lora.variable} antialiased`}
       >

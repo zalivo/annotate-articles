@@ -32,6 +32,30 @@ interface Props {
 export function LibraryTabs({ articles, countMap, stacks }: Props) {
   const [tab, setTab] = useState<"articles" | "stacks">("articles");
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<"annotations" | "title" | "site">("annotations");
+
+  const q = search.toLowerCase().trim();
+  const filteredArticles = (() => {
+    const filtered = q
+      ? articles.filter(
+          (a) =>
+            a.title?.toLowerCase().includes(q) ||
+            a.siteName?.toLowerCase().includes(q) ||
+            a.author?.toLowerCase().includes(q)
+        )
+      : articles;
+    if (sort === "title") return [...filtered].sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""));
+    if (sort === "site") return [...filtered].sort((a, b) => (a.siteName ?? "").localeCompare(b.siteName ?? ""));
+    return filtered; // already sorted by annotation count from server
+  })();
+  const filteredStacks = q
+    ? stacks.filter(
+        (s) =>
+          s.title.toLowerCase().includes(q) ||
+          s.description?.toLowerCase().includes(q)
+      )
+    : stacks;
 
   const tabStyle = (active: boolean) => ({
     color: active ? "var(--ink)" : "var(--ink-faint)",
@@ -41,6 +65,47 @@ export function LibraryTabs({ articles, countMap, stacks }: Props) {
 
   return (
     <>
+      {/* Search */}
+      <div
+        className="flex items-center gap-3 rounded-xl px-4 py-3 mb-6"
+        style={{
+          background: "var(--card)",
+          border: "1.5px solid var(--border)",
+          boxShadow: "0 1px 4px rgba(28,23,16,0.06)",
+        }}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          style={{ flexShrink: 0, color: "var(--ink-faint)" }}
+        >
+          <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M9.5 9.5L12.5 12.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search library…"
+          className="flex-1 bg-transparent outline-none text-sm"
+          style={{
+            color: "var(--ink)",
+            fontFamily: "var(--font-geist-sans)",
+          }}
+        />
+        {search && (
+          <button
+            onClick={() => setSearch("")}
+            className="text-xs cursor-pointer transition-opacity hover:opacity-60"
+            style={{ color: "var(--ink-faint)", fontFamily: "var(--font-geist-sans)" }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
       {/* Tab bar */}
       <div
         className="flex gap-6 mb-8 border-b"
@@ -51,20 +116,44 @@ export function LibraryTabs({ articles, countMap, stacks }: Props) {
           className="pb-3 text-sm font-medium transition-colors cursor-pointer"
           style={tabStyle(tab === "articles")}
         >
-          Articles ({articles.length})
+          Articles ({filteredArticles.length})
         </button>
         <button
           onClick={() => setTab("stacks")}
           className="pb-3 text-sm font-medium transition-colors cursor-pointer"
           style={tabStyle(tab === "stacks")}
         >
-          Stacks ({stacks.length})
+          Stacks ({filteredStacks.length})
         </button>
       </div>
 
       {/* Articles tab */}
       {tab === "articles" && (
         <>
+          {articles.length > 0 && (
+            <div className="flex items-center gap-2 mb-4">
+              <span
+                className="text-xs"
+                style={{ color: "var(--ink-faint)", fontFamily: "var(--font-geist-sans)" }}
+              >
+                Sort by
+              </span>
+              {(["annotations", "title", "site"] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setSort(s)}
+                  className="text-xs px-2 py-1 rounded-md transition-colors cursor-pointer"
+                  style={{
+                    background: sort === s ? "var(--ink)" : "transparent",
+                    color: sort === s ? "var(--cream)" : "var(--ink-muted)",
+                    fontFamily: "var(--font-geist-sans)",
+                  }}
+                >
+                  {s === "annotations" ? "Most annotated" : s === "title" ? "Title" : "Site"}
+                </button>
+              ))}
+            </div>
+          )}
           {articles.length === 0 ? (
             <div className="flex flex-col items-center gap-4 py-24 text-center">
               <p
@@ -81,9 +170,16 @@ export function LibraryTabs({ articles, countMap, stacks }: Props) {
                 Paste your first article →
               </Link>
             </div>
+          ) : filteredArticles.length === 0 ? (
+            <p
+              className="text-sm py-12 text-center"
+              style={{ color: "var(--ink-faint)", fontFamily: "var(--font-geist-sans)" }}
+            >
+              No articles matching &ldquo;{search}&rdquo;
+            </p>
           ) : (
             <ul className="flex flex-col divide-y" style={{ borderColor: "var(--border)" }}>
-              {articles.map((article) => (
+              {filteredArticles.map((article) => (
                 <LibraryArticleRow
                   key={article.id}
                   article={article}
@@ -145,9 +241,16 @@ export function LibraryTabs({ articles, countMap, stacks }: Props) {
                 Create a stack →
               </button>
             </div>
+          ) : filteredStacks.length === 0 && q ? (
+            <p
+              className="text-sm py-12 text-center"
+              style={{ color: "var(--ink-faint)", fontFamily: "var(--font-geist-sans)" }}
+            >
+              No stacks matching &ldquo;{search}&rdquo;
+            </p>
           ) : (
             <ul className="flex flex-col divide-y" style={{ borderColor: "var(--border)" }}>
-              {stacks.map((stack) => (
+              {filteredStacks.map((stack) => (
                 <StackCard key={stack.id} stack={stack} />
               ))}
             </ul>

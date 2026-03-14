@@ -10,6 +10,8 @@ import type { Metadata } from "next";
 import { ArticleReader } from "./ArticleReader";
 import { ShareButton } from "./ShareButton";
 import { AddToStackButton } from "./AddToStackButton";
+import { CopyHighlightsButton } from "./CopyHighlightsButton";
+import { ThemeToggle } from "@/app/ThemeToggle";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -19,11 +21,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const [article] = await db.select().from(articles).where(eq(articles.id, id)).limit(1);
   if (!article) return { title: "Article not found" };
+  const title = `${article.title} — Highlight Stack`;
+  const description = article.author
+    ? `Annotated article by ${article.author}${article.siteName ? ` · ${article.siteName}` : ""}`
+    : `Annotated article${article.siteName ? ` from ${article.siteName}` : ""}`;
+  const ogImage = `/api/og?title=${encodeURIComponent(article.title)}&subtitle=${encodeURIComponent(article.siteName ?? "")}&type=article`;
   return {
-    title: `${article.title} — Highlight Stack`,
-    description: article.author
-      ? `Annotated article by ${article.author}${article.siteName ? ` · ${article.siteName}` : ""}`
-      : `Annotated article${article.siteName ? ` from ${article.siteName}` : ""}`,
+    title,
+    description,
+    openGraph: { title, description, type: "article", images: [ogImage] },
+    twitter: { card: "summary_large_image", title, description, images: [ogImage] },
   };
 }
 
@@ -148,6 +155,8 @@ export default async function ArticlePage({ params }: Props) {
         ));
 
   const paragraphs = article.paragraphs as Paragraph[];
+  const wordCount = paragraphs.reduce((sum, p) => sum + p.text.split(/\s+/).filter(Boolean).length, 0);
+  const readingTime = Math.max(1, Math.round(wordCount / 238));
 
   return (
     <div className="min-h-screen" style={{ background: "var(--cream)" }}>
@@ -163,13 +172,16 @@ export default async function ArticlePage({ params }: Props) {
         >
           ← Highlight Stack
         </Link>
-        <Link
-          href="/library"
-          className="text-sm transition-opacity hover:opacity-60"
-          style={{ color: "var(--ink)", fontFamily: "var(--font-geist-sans)" }}
-        >
-          My Library
-        </Link>
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <Link
+            href="/library"
+            className="text-sm transition-opacity hover:opacity-60"
+            style={{ color: "var(--ink)", fontFamily: "var(--font-geist-sans)" }}
+          >
+            My Library
+          </Link>
+        </div>
       </nav>
 
       {/* Attribution banner */}
@@ -204,6 +216,11 @@ export default async function ArticlePage({ params }: Props) {
               }))}
             />
           )}
+          <CopyHighlightsButton
+            articleTitle={article.title}
+            sourceUrl={article.sourceUrl}
+            annotations={existingAnnotations.filter((a) => a.creatorId === currentUserId)}
+          />
           <ShareButton articleId={id} />
         </div>
       </div>
@@ -223,18 +240,20 @@ export default async function ArticlePage({ params }: Props) {
             {article.title}
           </h1>
 
-          {(article.author || article.siteName) && (
-            <div
-              className="flex items-center gap-2 text-sm"
-              style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
-            >
-              {article.author && <span>{article.author}</span>}
-              {article.author && article.siteName && (
-                <span style={{ color: "var(--ink-faint)" }}>·</span>
-              )}
-              {article.siteName && <span>{article.siteName}</span>}
-            </div>
-          )}
+          <div
+            className="flex items-center gap-2 text-sm"
+            style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
+          >
+            {article.author && <span>{article.author}</span>}
+            {article.author && article.siteName && (
+              <span style={{ color: "var(--ink-faint)" }}>·</span>
+            )}
+            {article.siteName && <span>{article.siteName}</span>}
+            {(article.author || article.siteName) && (
+              <span style={{ color: "var(--ink-faint)" }}>·</span>
+            )}
+            <span style={{ color: "var(--ink-faint)" }}>{readingTime} min read</span>
+          </div>
         </header>
 
         {/* Interactive reader */}

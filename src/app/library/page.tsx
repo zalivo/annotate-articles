@@ -3,6 +3,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { SignOutButton } from "./SignOutButton";
 import { LibraryTabs } from "./LibraryTabs";
+import { ThemeToggle } from "@/app/ThemeToggle";
 import { createServerClient } from "@supabase/ssr";
 import { db } from "@/db";
 import { users, articles, annotations, stacks, stackArticles } from "@/db/schema";
@@ -104,7 +105,8 @@ export default async function LibraryPage() {
         >
           ← Highlight Stack
         </Link>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
           <span
             className="text-xs"
             style={{ color: "var(--ink)", fontFamily: "var(--font-geist-sans)" }}

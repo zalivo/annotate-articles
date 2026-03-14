@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createBrowserClient } from "@supabase/ssr";
 import { trpc } from "@/trpc/client";
+import { ThemeToggle } from "./ThemeToggle";
 
 export default function Home() {
     const router = useRouter();
@@ -78,29 +79,32 @@ export default function Home() {
                 >
                     Highlight Stack
                 </Link>
-                {isSignedIn ? (
-                    <Link
-                        href="/library"
-                        className="text-sm transition-opacity hover:opacity-60"
-                        style={{
-                            color: "var(--ink-muted)",
-                            fontFamily: "var(--font-geist-sans)",
-                        }}
-                    >
-                        My Library
-                    </Link>
-                ) : (
-                    <Link
-                        href="/auth"
-                        className="text-sm transition-opacity hover:opacity-60"
-                        style={{
-                            color: "var(--ink-muted)",
-                            fontFamily: "var(--font-geist-sans)",
-                        }}
-                    >
-                        Sign in
-                    </Link>
-                )}
+                <div className="flex items-center gap-3">
+                    <ThemeToggle />
+                    {isSignedIn ? (
+                        <Link
+                            href="/library"
+                            className="text-sm transition-opacity hover:opacity-60"
+                            style={{
+                                color: "var(--ink-muted)",
+                                fontFamily: "var(--font-geist-sans)",
+                            }}
+                        >
+                            My Library
+                        </Link>
+                    ) : (
+                        <Link
+                            href="/auth"
+                            className="text-sm transition-opacity hover:opacity-60"
+                            style={{
+                                color: "var(--ink-muted)",
+                                fontFamily: "var(--font-geist-sans)",
+                            }}
+                        >
+                            Sign in
+                        </Link>
+                    )}
+                </div>
             </nav>
 
             {/* Hero */}
@@ -138,8 +142,22 @@ export default function Home() {
                             }}
                         >
                             Paste an article URL. Highlight what matters. Share
-                            your throughts with your friends.
+                            your thoughts with your friends.
                         </p>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setUrl("https://paulgraham.com/greatwork.html");
+                            }}
+                            className="text-xs underline underline-offset-2 transition-opacity hover:opacity-60 cursor-pointer"
+                            style={{
+                                color: "var(--ink-faint)",
+                                fontFamily: "var(--font-geist-sans)",
+                                marginTop: "0.75rem",
+                            }}
+                        >
+                            or try a sample article
+                        </button>
                     </div>
 
                     {/* Input */}
@@ -150,8 +168,8 @@ export default function Home() {
                         <div
                             className="flex items-center gap-3 rounded-xl px-5 py-4 transition-shadow focus-within:shadow-lg"
                             style={{
-                                background: "#fff",
-                                border: `1.5px solid ${status === "error" ? "#D94F3D" : "var(--border)"}`,
+                                background: "var(--card)",
+                                border: `1.5px solid ${status === "error" ? "var(--danger)" : "var(--border)"}`,
                                 boxShadow: "0 1px 4px rgba(28,23,16,0.06)",
                             }}
                         >
@@ -221,7 +239,7 @@ export default function Home() {
                             <p
                                 className="text-sm px-1"
                                 style={{
-                                    color: "#D94F3D",
+                                    color: "var(--danger)",
                                     fontFamily: "var(--font-geist-sans)",
                                 }}
                             >
@@ -250,7 +268,7 @@ export default function Home() {
                                         href={`/article/${article.id}`}
                                         className="flex items-baseline justify-between gap-4 rounded-lg px-4 py-3 transition-colors"
                                         style={{
-                                            background: "#fff",
+                                            background: "var(--card)",
                                             border: "1px solid var(--border)",
                                             fontFamily: "var(--font-geist-sans)",
                                         }}

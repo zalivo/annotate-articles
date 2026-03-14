@@ -59,7 +59,7 @@ export function StackCard({ stack }: Props) {
               className="text-[10px] px-1.5 py-0.5 rounded-full"
               style={{
                 background: "rgba(93, 201, 87, 0.15)",
-                color: "#3a9e30",
+                color: "#4aad40",
                 fontFamily: "var(--font-geist-sans)",
               }}
             >
@@ -69,7 +69,7 @@ export function StackCard({ stack }: Props) {
             <span
               className="text-[10px] px-1.5 py-0.5 rounded-full"
               style={{
-                background: "rgba(0,0,0,0.05)",
+                background: "var(--border)",
                 color: "var(--ink-faint)",
                 fontFamily: "var(--font-geist-sans)",
               }}
@@ -130,9 +130,9 @@ export function StackCard({ stack }: Props) {
           onMouseEnter={() => setDeleteHovered(true)}
           onMouseLeave={() => setDeleteHovered(false)}
           style={{
-            background: deleteHovered ? "#fef2f2" : "transparent",
-            border: deleteHovered ? "1px solid #fca5a5" : "1px solid var(--border)",
-            color: deleteHovered ? "#ef4444" : "var(--ink-muted)",
+            background: deleteHovered ? "var(--danger-bg)" : "transparent",
+            border: deleteHovered ? "1px solid var(--danger-border)" : "1px solid var(--border)",
+            color: deleteHovered ? "var(--danger)" : "var(--ink-muted)",
             fontFamily: "var(--font-geist-sans)",
           }}
         >

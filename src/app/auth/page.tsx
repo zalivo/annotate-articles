@@ -103,8 +103,8 @@ export default function AuthPage() {
             <div
               className="flex items-center gap-3 rounded-xl px-5 py-4 transition-shadow focus-within:shadow-lg"
               style={{
-                background: "#fff",
-                border: `1.5px solid ${status === "error" ? "#D94F3D" : "var(--border)"}`,
+                background: "var(--card)",
+                border: `1.5px solid ${status === "error" ? "var(--danger)" : "var(--border)"}`,
                 boxShadow: "0 1px 4px rgba(28,23,16,0.06)",
               }}
             >
@@ -124,7 +124,7 @@ export default function AuthPage() {
             </div>
 
             {status === "error" && (
-              <p className="text-sm px-1" style={{ color: "#D94F3D", fontFamily: "var(--font-geist-sans)" }}>
+              <p className="text-sm px-1" style={{ color: "var(--danger)", fontFamily: "var(--font-geist-sans)" }}>
                 {error}
               </p>
             )}

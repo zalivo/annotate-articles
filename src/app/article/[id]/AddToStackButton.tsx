@@ -84,7 +84,7 @@ export function AddToStackButton({ articleId, stacks }: Props) {
         <div
           className="absolute right-0 top-full mt-1 z-50 rounded-xl py-1 shadow-lg min-w-[200px]"
           style={{
-            background: "white",
+            background: "var(--card)",
             border: "1px solid var(--border)",
           }}
         >
@@ -93,7 +93,9 @@ export function AddToStackButton({ articleId, stacks }: Props) {
               key={stack.id}
               onClick={() => toggleStack(stack.id)}
               disabled={addArticle.isPending || removeArticle.isPending}
-              className="w-full text-left px-3 py-2 text-xs transition-all hover:bg-black/[0.03] flex items-center gap-2 cursor-pointer disabled:opacity-40"
+              className="w-full text-left px-3 py-2 text-xs transition-all flex items-center gap-2 cursor-pointer disabled:opacity-40"
+              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--border)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
               style={{
                 color: "var(--ink)",
                 fontFamily: "var(--font-geist-sans)",

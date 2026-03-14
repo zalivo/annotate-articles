@@ -7,6 +7,7 @@ import { stacks, stackArticles, articles, annotations, users } from "@/db/schema
 import { eq, and, sql, inArray, asc } from "drizzle-orm";
 import type { Metadata } from "next";
 import { StackDetail } from "./StackDetail";
+import { ThemeToggle } from "@/app/ThemeToggle";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -15,12 +16,20 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const [stack] = await db
-    .select({ title: stacks.title })
+    .select({ title: stacks.title, description: stacks.description })
     .from(stacks)
     .where(eq(stacks.slug, slug))
     .limit(1);
   if (!stack) return { title: "Stack not found" };
-  return { title: `${stack.title} — Highlight Stack` };
+  const title = `${stack.title} — Highlight Stack`;
+  const description = stack.description ?? `A curated collection of articles`;
+  const ogImage = `/api/og?title=${encodeURIComponent(stack.title)}&subtitle=${encodeURIComponent(stack.description ?? "")}&type=stack`;
+  return {
+    title,
+    description,
+    openGraph: { title, description, images: [ogImage] },
+    twitter: { card: "summary_large_image", title, description, images: [ogImage] },
+  };
 }
 
 export default async function StackPage({ params }: Props) {
@@ -142,13 +151,16 @@ export default async function StackPage({ params }: Props) {
         >
           ← Highlight Stack
         </Link>
-        <Link
-          href="/library"
-          className="text-sm transition-opacity hover:opacity-60"
-          style={{ color: "var(--ink)", fontFamily: "var(--font-geist-sans)" }}
-        >
-          My Library
-        </Link>
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <Link
+            href="/library"
+            className="text-sm transition-opacity hover:opacity-60"
+            style={{ color: "var(--ink)", fontFamily: "var(--font-geist-sans)" }}
+          >
+            My Library
+          </Link>
+        </div>
       </nav>
 
       <main className="mx-auto px-6 py-16" style={{ maxWidth: "720px" }}>

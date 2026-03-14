@@ -3,11 +3,29 @@
 :root {
   --cream: #F7F3EC;
   --ink: #1C1710;
-  --ink-muted: #6B6357;
-  --ink-faint: #C4BAB0;
+  --ink-muted: #6B6357;       /* ~5.3:1 on cream */
+  --ink-faint: #7D7368;       /* ~4.6:1 on cream — WCAG AA */
   --highlight: #F5C842;
   --highlight-dim: #FAE28A;
-  --border: #E0D9D0;
+  --border: #D6CFC5;
+  --card: #fff;
+  --danger: #D94F3D;
+  --danger-bg: #fef2f2;
+  --danger-border: #fca5a5;
+}
+
+[data-theme="dark"] {
+  --cream: #1A1A1A;
+  --ink: #E8E0D4;
+  --ink-muted: #B0A79C;       /* ~6.3:1 on dark bg */
+  --ink-faint: #948A82;       /* ~4.7:1 on dark bg — WCAG AA */
+  --highlight: #D4A828;
+  --highlight-dim: #8B7020;
+  --border: #3D3830;
+  --card: #242420;
+  --danger: #F87171;
+  --danger-bg: rgba(248, 113, 113, 0.1);
+  --danger-border: rgba(248, 113, 113, 0.3);
 }
 
 @theme inline {
@@ -21,6 +39,7 @@
 body {
   background: var(--cream);
   color: var(--ink);
+  transition: background 0.2s, color 0.2s;
 }
 
 ::selection {

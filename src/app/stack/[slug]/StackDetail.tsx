@@ -235,7 +235,7 @@ export function StackDetail({ stack, creator, articles: initialArticles, isOwner
                   </span>
                   <span>·</span>
                   {stack.visibility === "public" ? (
-                    <span style={{ color: "#3a9e30" }}>public</span>
+                    <span style={{ color: "#4aad40" }}>public</span>
                   ) : (
                     <span>private</span>
                   )}
