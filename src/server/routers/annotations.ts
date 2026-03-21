@@ -51,6 +51,30 @@ export const annotationsRouter = router({
       return updated;
     }),
 
+  updateSpan: protectedProcedure
+    .input(z.object({
+      id: z.string().uuid(),
+      startParagraphId: z.string(),
+      startOffset: z.number().int().min(0),
+      endParagraphId: z.string(),
+      endOffset: z.number().int().min(0),
+      highlightedText: z.string().min(1),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...fields } = input;
+      const [updated] = await ctx.db
+        .update(annotations)
+        .set({ ...fields, updatedAt: new Date() })
+        .where(
+          and(
+            eq(annotations.id, id),
+            eq(annotations.creatorId, ctx.user.id)
+          )
+        )
+        .returning();
+      return updated;
+    }),
+
   delete: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
@@ -98,10 +122,11 @@ export const annotationsRouter = router({
     .input(z.object({
       articleId: z.string().uuid(),
       creatorId: z.string().uuid().optional(),
-      viewerId: z.string().uuid().optional(),
     }))
     .query(async ({ ctx, input }) => {
-      const { articleId, creatorId, viewerId } = input;
+      const { articleId, creatorId } = input;
+      // Derive viewerId from session — never trust the client
+      const viewerId = ctx.user?.id;
 
       // If filtering by a specific creator (e.g. shared link), return all of theirs
       if (creatorId) {

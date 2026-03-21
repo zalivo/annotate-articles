@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/db";
 import { sharedLinks, articles, annotations, users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import type { Paragraph } from "@/db/schema";
 import type { Metadata } from "next";
 import { ArticleReader } from "@/app/article/[id]/ArticleReader";
@@ -62,7 +62,12 @@ export default async function SharedPage({ params }: Props) {
   const articleAnnotations = await db
     .select()
     .from(annotations)
-    .where(eq(annotations.articleId, link.articleId));
+    .where(
+      and(
+        eq(annotations.articleId, link.articleId),
+        eq(annotations.creatorId, link.creatorId),
+      )
+    );
 
   const [creator] = await db
     .select({ name: users.name })

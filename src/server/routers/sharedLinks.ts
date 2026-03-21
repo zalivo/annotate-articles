@@ -12,7 +12,10 @@ export const sharedLinksRouter = router({
       const [existing] = await ctx.db
         .select()
         .from(sharedLinks)
-        .where(eq(sharedLinks.articleId, input.articleId))
+        .where(and(
+          eq(sharedLinks.articleId, input.articleId),
+          eq(sharedLinks.creatorId, ctx.user.id),
+        ))
         .limit(1);
 
       if (existing) return existing;

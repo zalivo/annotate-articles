@@ -53,9 +53,13 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
   const [selectedVisibility, setSelectedVisibility] = useState<"private" | "public">("private");
   const [saveError, setSaveError] = useState("");
   const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
+  const [resizingAnnotationId, setResizingAnnotationId] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<{ annotationId: string; edge: "start" | "end" } | null>(null);
   const [showCommunity, setShowCommunity] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
+  const annotationsRef = useRef(annotations);
+  annotationsRef.current = annotations;
 
   // Split annotations into own vs others
   const myAnnotations = annotations.filter((a) => !currentUserId || a.creatorId === currentUserId || !a.creatorId);
@@ -99,9 +103,11 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
     },
   });
 
+  const updateSpan = trpc.annotations.updateSpan.useMutation();
+
   // Map browser Selection to paragraph model
   const handleMouseUp = useCallback(() => {
-    if (readOnly) return;
+    if (readOnly || dragging) return;
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !sel.rangeCount) return;
 
@@ -144,7 +150,7 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
 
     // Focus comment input after paint
     setTimeout(() => commentInputRef.current?.focus(), 50);
-  }, [readOnly]);
+  }, [readOnly, dragging]);
 
   function saveAnnotation() {
     if (!pending || !comment.trim()) return;
@@ -183,6 +189,77 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
     updateAnnotation.mutate({ id: ann.id, visibility: newVis });
   }
 
+  // Drag-resize: handle mousemove/mouseup on document while dragging a handle
+  useEffect(() => {
+    if (!dragging) return;
+
+    // Hide all handles/marks from hit-testing so caretRangeFromPoint lands on real text
+    const marks = containerRef.current?.querySelectorAll<HTMLElement>("mark, [data-drag-handle]");
+    marks?.forEach((el) => { el.style.pointerEvents = "none"; });
+
+    function handleMouseMove(e: MouseEvent) {
+      e.preventDefault();
+      const caretRange = document.caretRangeFromPoint(e.clientX, e.clientY);
+      if (!caretRange) return;
+      const paragraphEl = findParagraphElement(caretRange.startContainer);
+      if (!paragraphEl) return;
+      const paragraphId = paragraphEl.dataset.paragraphId;
+      if (!paragraphId) return;
+      const offset = getOffsetInElement(paragraphEl, caretRange.startContainer, caretRange.startOffset);
+
+      setAnnotations((prev) =>
+        prev.map((a) => {
+          if (a.id !== dragging!.annotationId) return a;
+          if (dragging!.edge === "start") {
+            // Don't allow start to go past end
+            const endPIdx = paragraphs.findIndex((p) => p.id === a.endParagraphId);
+            const newPIdx = paragraphs.findIndex((p) => p.id === paragraphId);
+            if (newPIdx > endPIdx || (newPIdx === endPIdx && offset >= a.endOffset)) return a;
+            return { ...a, startParagraphId: paragraphId, startOffset: offset };
+          } else {
+            // Don't allow end to go before start
+            const startPIdx = paragraphs.findIndex((p) => p.id === a.startParagraphId);
+            const newPIdx = paragraphs.findIndex((p) => p.id === paragraphId);
+            if (newPIdx < startPIdx || (newPIdx === startPIdx && offset <= a.startOffset)) return a;
+            return { ...a, endParagraphId: paragraphId, endOffset: offset };
+          }
+        })
+      );
+    }
+
+    function handleMouseUp() {
+      // Save the final position using ref to get latest state
+      const ann = annotationsRef.current.find((a) => a.id === dragging!.annotationId);
+      if (ann) {
+        const text = getHighlightedText(paragraphs, ann.startParagraphId, ann.startOffset, ann.endParagraphId, ann.endOffset);
+        if (text.length >= 1) {
+          updateSpan.mutate({
+            id: ann.id,
+            startParagraphId: ann.startParagraphId,
+            startOffset: ann.startOffset,
+            endParagraphId: ann.endParagraphId,
+            endOffset: ann.endOffset,
+            highlightedText: text,
+          });
+        }
+      }
+      setDragging(null);
+    }
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      // Restore pointer-events
+      marks?.forEach((el) => { el.style.pointerEvents = ""; });
+    };
+  }, [dragging, paragraphs]);
+
+  function startDrag(annotationId: string, edge: "start" | "end") {
+    setDragging({ annotationId, edge });
+  }
+
   // Build a map: paragraphId → list of highlights with their offsets
   const highlightMap = buildHighlightMap(displayAnnotations, currentUserId);
 
@@ -194,15 +271,16 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
       end: pending.endOffset,
       color: selectedColor,
       isOthers: false,
+      edge: "both",
     };
     if (pending.startParagraphId === pending.endParagraphId) {
       if (!highlightMap[pending.startParagraphId]) highlightMap[pending.startParagraphId] = [];
       highlightMap[pending.startParagraphId].push(previewRange);
     } else {
       if (!highlightMap[pending.startParagraphId]) highlightMap[pending.startParagraphId] = [];
-      highlightMap[pending.startParagraphId].push({ ...previewRange, end: Infinity });
+      highlightMap[pending.startParagraphId].push({ ...previewRange, end: Infinity, edge: "start" });
       if (!highlightMap[pending.endParagraphId]) highlightMap[pending.endParagraphId] = [];
-      highlightMap[pending.endParagraphId].push({ ...previewRange, start: 0 });
+      highlightMap[pending.endParagraphId].push({ ...previewRange, start: 0, edge: "end" });
     }
   }
 
@@ -214,7 +292,9 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
 
       if (e.key === "Escape") {
-        if (pending) {
+        if (resizingAnnotationId) {
+          setResizingAnnotationId(null);
+        } else if (pending) {
           cancelPending();
         } else if (activeAnnotationId) {
           setActiveAnnotationId(null);
@@ -251,10 +331,10 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [readOnly, pending, activeAnnotationId, displayAnnotations, paragraphs]);
+  }, [readOnly, pending, activeAnnotationId, resizingAnnotationId, displayAnnotations, paragraphs]);
 
   return (
-    <div ref={containerRef} className="relative" onClick={() => setActiveAnnotationId(null)}>
+    <div ref={containerRef} className="relative" onClick={() => { setActiveAnnotationId(null); }}>
       {/* Community highlights toggle */}
       {hasOthersAnnotations && !readOnly && (
         <div
@@ -298,9 +378,11 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
                 paragraph={p}
                 highlights={highlightMap[p.id] ?? []}
                 activeAnnotationId={activeAnnotationId}
+                resizingAnnotationId={resizingAnnotationId}
                 onHighlightClick={(id) =>
                   setActiveAnnotationId((prev) => (prev === id ? null : id))
                 }
+                onHandleDragStart={startDrag}
               />
             ))}
           </article>
@@ -315,6 +397,7 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
             onSelect={setActiveAnnotationId}
             onDelete={readOnly ? undefined : (id) => deleteAnnotation.mutate({ id })}
             onToggleVisibility={readOnly ? undefined : toggleVisibility}
+            onResize={readOnly ? undefined : (id) => { setResizingAnnotationId(id); setActiveAnnotationId(null); }}
             readerRef={containerRef}
             currentUserId={currentUserId}
           />
@@ -346,11 +429,19 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
             onClick={(e) => e.stopPropagation()}
           >
             <button
+              onClick={() => { setResizingAnnotationId(activeAnnotationId); setActiveAnnotationId(null); }}
+              className="text-xs transition-opacity hover:opacity-60 cursor-pointer"
+              style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
+            >
+              Resize
+            </button>
+            <span style={{ color: "var(--border)" }}>|</span>
+            <button
               onClick={() => deleteAnnotation.mutate({ id: activeAnnotationId })}
               className="text-xs transition-opacity hover:opacity-60 cursor-pointer"
               style={{ color: "var(--danger)", fontFamily: "var(--font-geist-sans)" }}
             >
-              Remove highlight
+              Remove
             </button>
           </div>
         );
@@ -488,6 +579,7 @@ export function ArticleReader({ articleId, paragraphs, readOnly = false, initial
             onClose={() => setActiveAnnotationId(null)}
             onDelete={readOnly || isOthers ? undefined : (id) => deleteAnnotation.mutate({ id })}
             onToggleVisibility={readOnly || isOthers ? undefined : toggleVisibility}
+            onResize={readOnly || isOthers ? undefined : (id) => { setResizingAnnotationId(id); setActiveAnnotationId(null); }}
             isOthers={isOthers}
           />
         );
@@ -504,23 +596,28 @@ interface HighlightRange {
   end: number;
   color: string;
   isOthers: boolean;
+  edge: "start" | "end" | "both";
 }
 
 function ParagraphBlock({
   paragraph,
   highlights,
   activeAnnotationId,
+  resizingAnnotationId,
   onHighlightClick,
+  onHandleDragStart,
 }: {
   paragraph: Paragraph;
   highlights: HighlightRange[];
   activeAnnotationId: string | null;
+  resizingAnnotationId: string | null;
   onHighlightClick: (id: string) => void;
+  onHandleDragStart: (annotationId: string, edge: "start" | "end") => void;
 }) {
   const { type, text, id } = paragraph;
 
   const content = highlights.length > 0
-    ? renderWithHighlights(text, highlights, activeAnnotationId, onHighlightClick)
+    ? renderWithHighlights(text, highlights, activeAnnotationId, resizingAnnotationId, onHighlightClick, onHandleDragStart)
     : text;
 
   const baseStyle = {
@@ -598,11 +695,59 @@ function ParagraphBlock({
   );
 }
 
+function DragHandle({ edge, onMouseDown }: {
+  edge: "start" | "end";
+  onMouseDown: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <span
+      data-drag-handle
+      onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onMouseDown(e); }}
+      className="select-none"
+      style={{
+        position: "relative",
+        display: "inline",
+        width: 0,
+        overflow: "visible",
+      }}
+    >
+      <span
+        style={{
+          position: "absolute",
+          top: "-2px",
+          [edge === "start" ? "right" : "left"]: "-6px",
+          width: "12px",
+          height: "calc(1.2em + 4px)",
+          borderRadius: "4px",
+          cursor: "ew-resize",
+          background: "var(--ink)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 10,
+        }}
+      >
+        {/* Grip dots */}
+        <svg width="6" height="10" viewBox="0 0 6 10" fill="none" style={{ pointerEvents: "none" }}>
+          <circle cx="2" cy="2" r="1" fill="var(--cream)" opacity="0.7" />
+          <circle cx="2" cy="5" r="1" fill="var(--cream)" opacity="0.7" />
+          <circle cx="2" cy="8" r="1" fill="var(--cream)" opacity="0.7" />
+          <circle cx="4.5" cy="2" r="1" fill="var(--cream)" opacity="0.7" />
+          <circle cx="4.5" cy="5" r="1" fill="var(--cream)" opacity="0.7" />
+          <circle cx="4.5" cy="8" r="1" fill="var(--cream)" opacity="0.7" />
+        </svg>
+      </span>
+    </span>
+  );
+}
+
 function renderWithHighlights(
   text: string,
   highlights: HighlightRange[],
   activeAnnotationId: string | null,
-  onHighlightClick: (id: string) => void
+  resizingAnnotationId: string | null,
+  onHighlightClick: (id: string) => void,
+  onHandleDragStart: (annotationId: string, edge: "start" | "end") => void,
 ): React.ReactNode[] {
   // Sort and build non-overlapping segments
   const sorted = [...highlights].sort((a, b) => a.start - b.start);
@@ -618,7 +763,10 @@ function renderWithHighlights(
     if (start < end) {
       const isPending = h.annotationId === "__pending__";
       const isActive = h.annotationId === activeAnnotationId;
+      const isResizing = h.annotationId === resizingAnnotationId;
       const palette = HIGHLIGHT_COLORS[h.color] ?? HIGHLIGHT_COLORS.yellow;
+      const showStartHandle = isResizing && (h.edge === "start" || h.edge === "both");
+      const showEndHandle = isResizing && (h.edge === "end" || h.edge === "both");
       segments.push(
         <mark
           key={h.annotationId}
@@ -631,12 +779,18 @@ function renderWithHighlights(
             color: "var(--ink)",
             padding: "1px 0",
           } : {
-            background: isPending ? palette.active : isActive ? palette.active : palette.dim,
+            background: isPending ? palette.active : (isActive || isResizing) ? palette.active : palette.dim,
             color: "#1C1710",
             padding: "1px 1px",
           }}
         >
+          {showStartHandle && (
+            <DragHandle edge="start" onMouseDown={() => onHandleDragStart(h.annotationId, "start")} />
+          )}
           {text.slice(start, end)}
+          {showEndHandle && (
+            <DragHandle edge="end" onMouseDown={() => onHandleDragStart(h.annotationId, "end")} />
+          )}
         </mark>
       );
       cursor = end;
@@ -659,6 +813,7 @@ function CommentSidebar({
   onSelect,
   onDelete,
   onToggleVisibility,
+  onResize,
   readerRef,
   currentUserId,
 }: {
@@ -668,6 +823,7 @@ function CommentSidebar({
   onSelect: (id: string | null) => void;
   onDelete?: (id: string) => void;
   onToggleVisibility?: (ann: Annotation) => void;
+  onResize?: (id: string) => void;
   readerRef: React.RefObject<HTMLDivElement | null>;
   currentUserId?: string;
 }) {
@@ -749,6 +905,18 @@ function CommentSidebar({
               </p>
               {isActive && !isOthers && (
                 <div className="flex items-center gap-3 mt-2">
+                  {onResize && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onResize(ann.id);
+                      }}
+                      className="text-xs transition-opacity hover:opacity-60 cursor-pointer"
+                      style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
+                    >
+                      Resize
+                    </button>
+                  )}
                   {onToggleVisibility && (
                     <button
                       onClick={(e) => {
@@ -802,12 +970,14 @@ function MobileAnnotationCard({
   onClose,
   onDelete,
   onToggleVisibility,
+  onResize,
   isOthers,
 }: {
   annotation: Annotation;
   onClose: () => void;
   onDelete?: (id: string) => void;
   onToggleVisibility?: (ann: Annotation) => void;
+  onResize?: (id: string) => void;
   isOthers?: boolean;
 }) {
   if (!annotation) return null;
@@ -850,6 +1020,15 @@ function MobileAnnotationCard({
           </p>
         )}
         <div className="flex items-center gap-3 mt-3">
+          {onResize && (
+            <button
+              onClick={() => onResize(annotation.id)}
+              className="text-xs transition-opacity hover:opacity-60 cursor-pointer"
+              style={{ color: "var(--ink-muted)", fontFamily: "var(--font-geist-sans)" }}
+            >
+              Resize
+            </button>
+          )}
           {onToggleVisibility && (
             <button
               onClick={() => onToggleVisibility(annotation)}
@@ -895,6 +1074,27 @@ function getOffsetInElement(container: HTMLElement, node: Node, offset: number):
     current = walker.nextNode();
   }
   return total + offset;
+}
+
+function getHighlightedText(
+  paragraphs: Paragraph[],
+  startParagraphId: string,
+  startOffset: number,
+  endParagraphId: string,
+  endOffset: number,
+): string {
+  if (startParagraphId === endParagraphId) {
+    const p = paragraphs.find((p) => p.id === startParagraphId);
+    return p ? p.text.slice(startOffset, endOffset) : "";
+  }
+  const startIdx = paragraphs.findIndex((p) => p.id === startParagraphId);
+  const endIdx = paragraphs.findIndex((p) => p.id === endParagraphId);
+  let text = paragraphs[startIdx]?.text.slice(startOffset) ?? "";
+  for (let i = startIdx + 1; i < endIdx; i++) {
+    text += " " + paragraphs[i].text;
+  }
+  text += " " + (paragraphs[endIdx]?.text.slice(0, endOffset) ?? "");
+  return text;
 }
 
 function getOffsetTopRelativeTo(el: HTMLElement, ancestor: HTMLElement | null): number {
@@ -1003,6 +1203,7 @@ function buildHighlightMap(annotations: Annotation[], currentUserId?: string): R
         end: ann.endOffset,
         color: ann.color,
         isOthers,
+        edge: "both",
       });
     } else {
       // Cross-paragraph: highlight to end of start paragraph, from start of end paragraph
@@ -1013,6 +1214,7 @@ function buildHighlightMap(annotations: Annotation[], currentUserId?: string): R
         end: Infinity,
         color: ann.color,
         isOthers,
+        edge: "start",
       });
       if (!map[ann.endParagraphId]) map[ann.endParagraphId] = [];
       map[ann.endParagraphId].push({
@@ -1021,6 +1223,7 @@ function buildHighlightMap(annotations: Annotation[], currentUserId?: string): R
         end: ann.endOffset,
         color: ann.color,
         isOthers,
+        edge: "end",
       });
     }
   }
